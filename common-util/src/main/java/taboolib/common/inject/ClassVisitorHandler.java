@@ -13,8 +13,10 @@ import taboolib.common.platform.Ghost;
 import taboolib.common.platform.Platform;
 import taboolib.common.platform.PlatformSide;
 import taboolib.common.platform.SkipTo;
+import taboolib.common.platform.DelayTo;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * TabooLib
@@ -27,6 +29,7 @@ import java.util.*;
 public class ClassVisitorHandler {
 
     private static final NavigableMap<Byte, VisitorGroup> propertyMap = Collections.synchronizedNavigableMap(new TreeMap<>());
+    private static final Map<LifeCycle, Set<ReflexClass>> delayedClasses = Collections.synchronizedMap(new HashMap<>());
     private static Set<ReflexClass> classes = null;
 
     /**
@@ -106,7 +109,7 @@ public class ClassVisitorHandler {
      */
     public static void injectAll(@NotNull ReflexClass clazz) {
         for (Map.Entry<Byte, VisitorGroup> entry : propertyMap.entrySet()) {
-            inject(clazz, entry.getValue(), null);
+            inject(clazz, entry.getValue(), null, false);
         }
     }
 
@@ -116,9 +119,23 @@ public class ClassVisitorHandler {
      * @param lifeCycle 生命周期
      */
     public static void injectAll(@NotNull LifeCycle lifeCycle) {
+        // 处理延迟注入的类
+        final Set<ReflexClass> delayedForThisCycle = delayedClasses.get(lifeCycle);
+        if (delayedForThisCycle != null) {
+            final List<LifeCycle> cyclesUtilNow = Arrays.stream(LifeCycle.values()).filter(cycle -> cycle.ordinal() < lifeCycle.ordinal()).collect(Collectors.toList());
+            for (final LifeCycle cycle : cyclesUtilNow) {
+                for (final ReflexClass clazz : delayedForThisCycle) {
+                    for (Map.Entry<Byte, VisitorGroup> entry : propertyMap.entrySet()) {
+                        inject(clazz, entry.getValue(), cycle, true);
+                    }
+                }
+            }
+            delayedClasses.remove(lifeCycle);
+        }
+        // 处理正常的类注入
         for (Map.Entry<Byte, VisitorGroup> entry : propertyMap.entrySet()) {
             for (ReflexClass clazz : getClasses()) {
-                inject(clazz, entry.getValue(), lifeCycle);
+                inject(clazz, entry.getValue(), lifeCycle, false);
             }
         }
     }
@@ -129,8 +146,9 @@ public class ClassVisitorHandler {
      * @param clazz     类
      * @param group     注入组
      * @param lifeCycle 生命周期
+     * @param isDelayTo 是否为 @DelayTo 的注入行为
      */
-    public static void inject(@NotNull ReflexClass clazz, @NotNull VisitorGroup group, @Nullable LifeCycle lifeCycle) {
+    public static void inject(@NotNull ReflexClass clazz, @NotNull VisitorGroup group, @Nullable LifeCycle lifeCycle, boolean isDelayTo) {
         // 跳过注入
         if (clazz.getStructure().isAnnotationPresent(Ghost.class)) {
             return;
@@ -139,6 +157,14 @@ public class ClassVisitorHandler {
         if (lifeCycle != null && clazz.getStructure().isAnnotationPresent(SkipTo.class)) {
             int skip = clazz.getStructure().getAnnotation(SkipTo.class).getEnum("value", LifeCycle.CONST).ordinal();
             if (skip > lifeCycle.ordinal()) return;
+        }
+        // 检查 DelayTo
+        if (lifeCycle != null && clazz.getStructure().isAnnotationPresent(DelayTo.class) && !isDelayTo) {
+            final LifeCycle delayTo = clazz.getStructure().getAnnotation(DelayTo.class).getEnum("value", LifeCycle.CONST);
+            if (delayTo.ordinal() > lifeCycle.ordinal()) {
+                delayedClasses.computeIfAbsent(delayTo, k -> Collections.synchronizedSet(new HashSet<>())).add(clazz);
+                return;
+            }
         }
         // 依赖注入
         visitStart(clazz, group, lifeCycle);
