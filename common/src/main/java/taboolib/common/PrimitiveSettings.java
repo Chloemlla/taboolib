@@ -84,6 +84,11 @@ public class PrimitiveSettings {
     public static final boolean IS_DISABLE_ON_UNSUPPORTED_VERSION = RUNTIME_PROPERTIES.getProperty("disable-on-unsupported-version", "true").equals("true");
 
     /**
+     * 在原始加载器初始化失败时是否强制关闭服务器
+     */
+    public static final boolean IS_DISABLE_WHEN_PRIMITIVE_LOADER_ERROR = RUNTIME_PROPERTIES.getProperty("disable-when-primitive-loader-error", "false").equals("true");
+
+    /**
      * 中央仓库
      */
     public static final String REPO_CENTRAL = RUNTIME_PROPERTIES.getProperty("repo-central", getProperty("taboolib.repo.central", "https://maven.aliyun.com/repository/central"));
