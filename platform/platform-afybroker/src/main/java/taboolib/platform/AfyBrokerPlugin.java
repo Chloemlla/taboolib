@@ -47,6 +47,10 @@ public class AfyBrokerPlugin extends net.afyer.afybroker.server.plugin.Plugin {
                     );
                     // 打印堆栈
                     ex.printStackTrace();
+                    try {
+                        Thread.sleep(3000);
+                    } catch (Throwable ignored) {
+                    }
                     // 关闭程序
                     Runtime.getRuntime().halt(-1);
                 } else {

@@ -57,6 +57,10 @@ public class VelocityPlugin {
                             )
                     );
                     ex.printStackTrace();
+                    try {
+                        Thread.sleep(3000);
+                    } catch (Throwable ignored) {
+                    }
                     Runtime.getRuntime().halt(-1);
                 } else {
                     TabooLib.setStopped(true);

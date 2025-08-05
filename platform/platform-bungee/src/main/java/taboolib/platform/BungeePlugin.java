@@ -47,6 +47,10 @@ public class BungeePlugin extends net.md_5.bungee.api.plugin.Plugin {
                             )
                     );
                     ex.printStackTrace();
+                    try {
+                        Thread.sleep(3000);
+                    } catch (Throwable ignored) {
+                    }
                     Runtime.getRuntime().halt(-1);
                 } else {
                     TabooLib.setStopped(true);
