@@ -111,8 +111,19 @@ object MinecraftLanguage {
         }
     }
 
+    /** 是否使用国内 BMCI 镜像源, 在访问失败时会再次尝试使用 Mojang 官方源下载 */
+    var useMirror = true
+
+    /** 资源清单文件地址 */
+    val versionManifest: String
+        get() = if (useMirror) "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json" else "https://launchermeta.mojang.com/mc/game/version_manifest.json"
+
     /** 资源文件地址 */
-    var resourceUrl = "https://resources.download.minecraft.net"
+    val resourceUrl: String
+        get() = if (useMirror) "https://bmclapi2.bangbang93.com/assets" else "https://resources.download.minecraft.net"
+
+    /** 版本文件地址替换 */
+    val transferUrl: (String) -> String = { url -> if (useMirror) url.replace("piston-meta.mojang.com", "bmclapi2.bangbang93.com") else url }
 
     /** 支持的语言文件 */
     val supportedLanguage = arrayListOf("zh_cn", "zh_tw", "en_gb")
@@ -148,7 +159,14 @@ object MinecraftLanguage {
                     Downloading Minecraft language files ...
                 """.t()
             )
-            downloadFiles()
+            try {
+                // 先从国内镜像源下载
+                downloadFiles()
+            } catch (_: Throwable) {
+                // 从国内镜像源下载出错, 再次尝试使用官方源下载
+                useMirror = false
+                downloadFiles()
+            }
         }
         // 加载本地文件
         loadFiles()
@@ -181,14 +199,15 @@ object MinecraftLanguage {
 
     /** 下载语言文件 */
     private fun downloadFiles() {
+        println(useMirror)
         // region
-        val manifest = readJson("https://launchermeta.mojang.com/mc/game/version_manifest.json")
+        val manifest = readJson(versionManifest)
         for (ver in manifest.getAsJsonArray("versions")) {
             if (ver.asJsonObject["id"].asString == MinecraftVersion.runningVersion) {
                 // 获取版本信息
-                val versionObject = readJson(ver.asJsonObject["url"].asString)
+                val versionObject = readJson(transferUrl(ver.asJsonObject["url"].asString))
                 // 获取资源信息
-                val assetIndexObject = readJson(versionObject["assetIndex"].asJsonObject["url"].asString)
+                val assetIndexObject = readJson(transferUrl(versionObject["assetIndex"].asJsonObject["url"].asString))
                 // 下载语言文件
                 val objects = assetIndexObject["objects"].asJsonObject
                 supportedLanguage.forEach { language ->
