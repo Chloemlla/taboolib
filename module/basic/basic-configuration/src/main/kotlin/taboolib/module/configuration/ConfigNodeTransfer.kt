@@ -24,8 +24,17 @@ class ConfigNodeTransfer<T, R>(internal val transfer: T.() -> R) {
     internal var cachedValue: Any? = null
         private set
 
+    /** 默认值 */
+    internal var defaultValue: R? = null
+        private set
+
     constructor(lazy: Boolean, transfer: T.() -> R) : this(transfer) {
         this.isLazyMode = lazy
+    }
+
+    constructor(lazy: Boolean, defaultValue: R?, transfer: T.() -> R) : this(transfer) {
+        this.isLazyMode = lazy
+        this.defaultValue = defaultValue
     }
 
     /** 获取转换后的值 */
@@ -34,7 +43,7 @@ class ConfigNodeTransfer<T, R>(internal val transfer: T.() -> R) {
         if (isLazyMode && cachedValue == null && configValue != null) {
             cachedValue = transfer(configValue as T)
         }
-        return cachedValue as? R ?: error("No value")
+        return cachedValue as? R ?: defaultValue ?: error("No value")
     }
 
     /** 刷新缓存 */
@@ -58,6 +67,14 @@ fun <T, R> conversion(lazy: Boolean = false, block: T.() -> R): ConfigNodeTransf
     return ConfigNodeTransfer(lazy, block)
 }
 
+fun <T, R> conversion(lazy: Boolean = false, defaultValue: R?, block: T.() -> R): ConfigNodeTransfer<T, R> {
+    return ConfigNodeTransfer(lazy, defaultValue, block)
+}
+
 fun <T, R> lazyConversion(block: T.() -> R): ConfigNodeTransfer<T, R> {
     return ConfigNodeTransfer(true, block)
+}
+
+fun <T, R> lazyConversion(defaultValue: R?, block: T.() -> R): ConfigNodeTransfer<T, R> {
+    return ConfigNodeTransfer(true, defaultValue, block)
 }
