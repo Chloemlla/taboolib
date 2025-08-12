@@ -199,7 +199,6 @@ object MinecraftLanguage {
 
     /** 下载语言文件 */
     private fun downloadFiles() {
-        println(useMirror)
         // region
         val manifest = readJson(versionManifest)
         for (ver in manifest.getAsJsonArray("versions")) {
