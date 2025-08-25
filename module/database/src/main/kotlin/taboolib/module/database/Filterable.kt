@@ -70,6 +70,16 @@ abstract class Filterable {
         return Criteria("${asFormattedColumnName()} IN (${unwrapArray(value, el)})", el).apply(this@Filterable)
     }
 
+    /**
+     * 在某集合之内（强制使用二进制校对规则，解决字符集冲突）
+     * 适用于MySQL utf8_general_ci 校对规则冲突的情况
+     */
+    infix fun String.insideBinary(value: Array<Any>): Criteria {
+        if (value.isEmpty()) error("empty value")
+        val el = arrayListOf<Any>()
+        return Criteria("${asFormattedColumnName()} COLLATE utf8mb4_bin IN (${unwrapArray(value, el)})", el).apply(this@Filterable)
+    }
+
     /** 在某范围之内 */
     infix fun String.between(value: Pair<Any, Any>): Criteria {
         val el = arrayListOf<Any>()
