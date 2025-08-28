@@ -66,6 +66,40 @@ open class NMSItemTagLegacy : NMSItemTag() {
         return getBukkitCopy(nmsItem)
     }
 
+    override fun setItemCanBreak(itemStack: ItemStack, blocks: List<String>): ItemStack {
+        val tag = getItemTag(itemStack, true)
+        tag.putDeep("CanDestroy", ItemTagList.of(*blocks.toTypedArray()))
+        return setItemTag(itemStack, tag, true)
+    }
+
+    override fun setItemCanPlaceOn(itemStack: ItemStack, blocks: List<String>): ItemStack {
+        val tag = getItemTag(itemStack, true)
+        tag.putDeep("CanPlaceOn", ItemTagList.of(*blocks.toTypedArray()))
+        return setItemTag(itemStack, tag, true)
+    }
+
+    override fun hasItemCanBreak(itemStack: ItemStack): Boolean {
+        val tag = getItemTag(itemStack, true)
+        return tag.contains("CanDestroy")
+    }
+
+    override fun hasItemCanPlaceOn(itemStack: ItemStack): Boolean {
+        val tag = getItemTag(itemStack, true)
+        return tag.contains("CanPlaceOn")
+    }
+
+    override fun removeItemCanBreak(itemStack: ItemStack): ItemStack {
+        val tag = getItemTag(itemStack, true)
+        tag.remove("CanDestroy")
+        return setItemTag(itemStack, tag, true)
+    }
+
+    override fun removeItemCanPlaceOn(itemStack: ItemStack): ItemStack {
+        val tag = getItemTag(itemStack, true)
+        tag.remove("CanPlaceOn")
+        return setItemTag(itemStack, tag, true)
+    }
+
     override fun itemTagToString(itemTagData: ItemTagData): String {
         return itemTagToNMSCopy(itemTagData).toString()
     }
@@ -137,8 +171,15 @@ open class NMSItemTagLegacy : NMSItemTag() {
             is NBTTagString12 -> ItemTagData(ItemTagType.STRING, nbtTagStringGetter.get(nbtTag))
 
             // 数组类型特殊处理
-            is NBTTagByteArray12 -> ItemTagData(ItemTagType.BYTE_ARRAY, nbtTagByteArrayGetter.get<ByteArray>(nbtTag).copyOf())
-            is NBTTagIntArray12 -> ItemTagData(ItemTagType.INT_ARRAY, nbtTagIntArrayGetter.get<IntArray>(nbtTag).copyOf())
+            is NBTTagByteArray12 -> ItemTagData(
+                ItemTagType.BYTE_ARRAY,
+                nbtTagByteArrayGetter.get<ByteArray>(nbtTag).copyOf()
+            )
+
+            is NBTTagIntArray12 -> ItemTagData(
+                ItemTagType.INT_ARRAY,
+                nbtTagIntArrayGetter.get<IntArray>(nbtTag).copyOf()
+            )
             // 1.11 及以下版本无此类型
             // is NBTTagLongArray12 -> ItemTagData(ItemTagType.LONG_ARRAY, nbtTagLongArrayGetter.get<LongArray>(nbtTag).copyOf())
 
@@ -149,7 +190,10 @@ open class NMSItemTagLegacy : NMSItemTag() {
 
             // 复合类型特殊处理
             is NBTTagCompound12 -> {
-                ItemTag().apply { nbtTagCompoundGetter.get<Map<String, Any>>(nbtTag).forEach { put(it.key, itemTagToBukkitCopy(it.value)) } }
+                ItemTag().apply {
+                    nbtTagCompoundGetter.get<Map<String, Any>>(nbtTag)
+                        .forEach { put(it.key, itemTagToBukkitCopy(it.value)) }
+                }
             }
 
             // 其他类型

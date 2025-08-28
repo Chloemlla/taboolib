@@ -40,6 +40,62 @@ fun ItemStack.toMinecraftJson(): String {
 }
 
 /**
+ * 设置物品可破坏方块列表
+ *
+ * @param blocks 列表，方块名称，如 "minecraft:stone"
+ * @return 添加成功返回新的物品，否则返回原物品
+ */
+fun ItemStack.setItemCanBreak(blocks: List<String>): ItemStack {
+    return NMSItemTag.instance.setItemCanBreak(validation(), blocks)
+}
+
+/**
+ * 设置物品可放置方块列表
+ *
+ * @param blocks 列表，方块名称，如 "minecraft:stone"
+ * @return 添加成功返回新的物品，否则返回原物品
+ */
+fun ItemStack.setItemCanPlaceOn(blocks: List<String>): ItemStack {
+    return NMSItemTag.instance.setItemCanPlaceOn(validation(), blocks)
+}
+
+/**
+ * 移除物品可破坏方块列表
+ *
+ * @return 移除成功返回新的物品，否则返回原物品
+ */
+fun ItemStack.removeItemCanBreak(): ItemStack {
+    return NMSItemTag.instance.removeItemCanBreak(validation())
+}
+
+/**
+ * 移除物品可放置方块列表
+ *
+ * @return 移除成功返回新的物品，否则返回原物品
+ */
+fun ItemStack.removeItemCanPlaceOn(): ItemStack {
+    return NMSItemTag.instance.removeItemCanPlaceOn(validation())
+}
+
+/**
+ * 检查物品是否设置了可破坏方块组件
+ *
+ * @return 如果物品包含 can_break 数据组件则返回 true，否则返回 false
+ */
+fun ItemStack.hasItemCanBreak(): Boolean {
+    return NMSItemTag.instance.hasItemCanBreak(validation())
+}
+
+/**
+ * 检查物品是否设置了可放置方块组件
+ *
+ * @return 如果物品包含 can_place_on 数据组件则返回 true，否则返回 false
+ */
+fun ItemStack.hasItemCanPlaceOn(): Boolean {
+    return NMSItemTag.instance.hasItemCanPlaceOn(validation())
+}
+
+/**
  * TabooLib
  * taboolib.module.nms.NMSItemTag
  *
@@ -71,6 +127,54 @@ abstract class NMSItemTag {
 
     /** 将 [net.minecraft.server] 下的 NBTTag 转换为 [ItemTagData] */
     abstract fun itemTagToBukkitCopy(nbtTag: Any): ItemTagData
+
+    /**
+     * 设置物品可破坏方块列表
+     *
+     * @param blocks 列表，方块名称，如 "minecraft:stone"
+     * @return 设置成功返回新的物品，否则返回原物品
+     */
+    abstract fun setItemCanBreak(itemStack: ItemStack, blocks: List<String>): ItemStack
+
+    /**
+     * 设置物品可放置方块列表
+     *
+     * @param blocks 列表，方块名称，如 "minecraft:stone"
+     * @return 设置成功返回新的物品，否则返回原物品
+     */
+    abstract fun setItemCanPlaceOn(itemStack: ItemStack, blocks: List<String>): ItemStack
+
+    /**
+     * 检查物品是否设置了可破坏方块组件
+     *
+     * @param itemStack 要检查的物品
+     * @return 如果物品包含 can_break 数据组件则返回 true，否则返回 false
+     */
+    abstract fun hasItemCanBreak(itemStack: ItemStack): Boolean
+
+    /**
+     * 检查物品是否设置了可放置方块组件
+     *
+     * @param itemStack 要检查的物品
+     * @return 如果物品包含 can_place_on 数据组件则返回 true，否则返回 false
+     */
+    abstract fun hasItemCanPlaceOn(itemStack: ItemStack): Boolean
+
+    /**
+     * 移除物品可破坏方块列表
+     *
+     * @param itemStack 要移除物品的方块列表的物品
+     * @return 移除成功返回新的物品，否则返回原物品
+     */
+    abstract fun removeItemCanBreak(itemStack: ItemStack): ItemStack
+
+    /**
+     * 移除物品可放置方块列表
+     *
+     * @param itemStack 要移除物品的方块列表的物品
+     * @return 移除成功返回新的物品，否则返回原物品
+     */
+    abstract fun removeItemCanPlaceOn(itemStack: ItemStack): ItemStack
 
     /**
      * 将物品转换为原版 Json 形式，可插入 Tellraw 信息中。
