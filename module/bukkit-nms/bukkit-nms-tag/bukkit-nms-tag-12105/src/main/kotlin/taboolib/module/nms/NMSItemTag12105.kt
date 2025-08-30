@@ -1,7 +1,12 @@
 package taboolib.module.nms
 
+import net.minecraft.advancements.critereon.CriterionConditionBlock
+import net.minecraft.core.component.DataComponentType
 import net.minecraft.core.component.DataComponents
+import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.nbt.*
+import net.minecraft.resources.MinecraftKey
+import net.minecraft.world.item.AdventureModePredicate
 import net.minecraft.world.item.component.CustomData
 import org.bukkit.craftbukkit.v1_21_R4.CraftRegistry
 import org.bukkit.craftbukkit.v1_21_R4.inventory.CraftItemStack
@@ -24,7 +29,10 @@ class NMSItemTag12105 : NMSItemTag() {
     override fun fromMinecraftJson(json: String): ItemStack? {
         // 1.20.5 -> MojangsonParser.parseTag(String)
         // 1.21.5 -> MojangsonParser.parseComponentFully(String)
-        val nmsItem = net.minecraft.world.item.ItemStack.parse(CraftRegistry.getMinecraftRegistry(), MojangsonParser.parseCompoundFully(json)).getOrNull()
+        val nmsItem = net.minecraft.world.item.ItemStack.parse(
+            CraftRegistry.getMinecraftRegistry(),
+            MojangsonParser.parseCompoundFully(json)
+        ).getOrNull()
         return if (nmsItem != null) getBukkitCopy(nmsItem) else null
     }
 
@@ -53,9 +61,62 @@ class NMSItemTag12105 : NMSItemTag() {
             nmsItem.set(DataComponents.CUSTOM_DATA, CustomData.of(itemTagToNMSCopy(itemTag) as NBTTagCompound))
             getBukkitCopy(nmsItem)
         } else {
-            val nmsItem = net.minecraft.world.item.ItemStack.parse(CraftRegistry.getMinecraftRegistry(), itemTagToNMSCopy(itemTag))
+            val nmsItem = net.minecraft.world.item.ItemStack.parse(
+                CraftRegistry.getMinecraftRegistry(),
+                itemTagToNMSCopy(itemTag)
+            )
             if (nmsItem.isPresent) getBukkitCopy(nmsItem.get()) else itemStack
         }
+    }
+
+    private fun setAdventurePredicate(
+        itemStack: ItemStack,
+        blocks: List<String>,
+        componentType: DataComponentType<AdventureModePredicate>
+    ): ItemStack {
+        val nmsItem = getNMSCopy(itemStack)
+        val predicates = blocks.mapNotNull { blockName ->
+            val key = MinecraftKey.parse(blockName)
+            val blockHolder = BuiltInRegistries.BLOCK.get(key).getOrNull()
+            blockHolder?.let { holder ->
+                CriterionConditionBlock.a.block()
+                    .of(BuiltInRegistries.BLOCK, holder.value())
+                    .build()
+            }
+        }
+        val predicate = AdventureModePredicate(predicates)
+        nmsItem.set(componentType, predicate)
+        return getBukkitCopy(nmsItem)
+    }
+
+    override fun setItemCanBreak(itemStack: ItemStack, blocks: List<String>): ItemStack {
+        return setAdventurePredicate(itemStack, blocks, DataComponents.CAN_BREAK)
+    }
+
+    override fun setItemCanPlaceOn(itemStack: ItemStack, blocks: List<String>): ItemStack {
+        return setAdventurePredicate(itemStack, blocks, DataComponents.CAN_PLACE_ON)
+    }
+
+    override fun hasItemCanBreak(itemStack: ItemStack): Boolean {
+        val nmsItem = getNMSCopy(itemStack)
+        return nmsItem.get(DataComponents.CAN_BREAK) != null
+    }
+
+    override fun hasItemCanPlaceOn(itemStack: ItemStack): Boolean {
+        val nmsItem = getNMSCopy(itemStack)
+        return nmsItem.get(DataComponents.CAN_PLACE_ON) != null
+    }
+
+    override fun removeItemCanBreak(itemStack: ItemStack): ItemStack {
+        val nmsItem = getNMSCopy(itemStack)
+        nmsItem.remove(DataComponents.CAN_BREAK)
+        return getBukkitCopy(nmsItem)
+    }
+
+    override fun removeItemCanPlaceOn(itemStack: ItemStack): ItemStack {
+        val nmsItem = getNMSCopy(itemStack)
+        nmsItem.remove(DataComponents.CAN_PLACE_ON)
+        return getBukkitCopy(nmsItem)
     }
 
     override fun itemTagToString(itemTagData: ItemTagData): String {
