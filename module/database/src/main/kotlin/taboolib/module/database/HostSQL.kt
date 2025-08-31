@@ -12,7 +12,8 @@ import taboolib.module.database.Database.settingsFile
 class HostSQL(val host: String, val port: String, val user: String, val password: String, val database: String) : Host<SQL>() {
 
     // allowPublicKeyRetrieval=true 用来针对 MySQL8 版本出现的 Public Key Retrieval is not allowed 异常
-    val flags = arrayListOf("characterEncoding=utf-8", "useSSL=false", "allowPublicKeyRetrieval=true")
+    // useUnicode=true&connectionCollation=utf8mb4_unicode_ci 解决字符集校对规则冲突
+    val flags = arrayListOf("characterEncoding=utf-8", "useSSL=false", "allowPublicKeyRetrieval=true", "useUnicode=true", "connectionCollation=utf8mb4_unicode_ci")
 
     val flagsURL: String
         get() = if (flags.isEmpty()) "" else "?${flags.joinToString("&")}"
