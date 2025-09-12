@@ -109,7 +109,7 @@ public class BlockReader extends AbstractStringReader {
             Quest.Block block = new SimpleQuest.SimpleBlock(name, actions);
             this.blocks.put(block.getLabel(), block);
             head.set(ActionProperties.BLOCK, block.getLabel());
-            return actions.getLast();
+            return head;
         } else {
             return ParsedAction.noop();
         }
