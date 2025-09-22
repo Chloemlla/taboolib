@@ -2,11 +2,17 @@
 
 package taboolib.module.nms
 
+import net.minecraft.EnumChatFormat
+import net.minecraft.core.IRegistryCustom
+import net.minecraft.network.chat.IChatBaseComponent
 import net.minecraft.network.chat.numbers.BlankFormat
-import net.minecraft.network.protocol.game.ClientboundResetScorePacket
-import net.minecraft.network.protocol.game.PacketPlayOutScoreboardScore
-import net.minecraft.network.protocol.game.PacketPlayOutScoreboardTeam
+import net.minecraft.network.protocol.game.*
+import net.minecraft.server.v1_12_R1.ScoreboardScore
 import net.minecraft.world.scores.DisplaySlot
+import net.minecraft.world.scores.Scoreboard
+import net.minecraft.world.scores.ScoreboardObjective
+import net.minecraft.world.scores.ScoreboardTeam
+import net.minecraft.world.scores.criteria.IScoreboardCriteria
 import org.bukkit.Bukkit
 import org.bukkit.ChatColor
 import org.bukkit.entity.Player
@@ -15,13 +21,11 @@ import org.bukkit.event.player.PlayerQuitEvent
 import org.tabooproject.reflex.Reflex.Companion.invokeConstructor
 import org.tabooproject.reflex.Reflex.Companion.invokeMethod
 import org.tabooproject.reflex.Reflex.Companion.setProperty
-import org.tabooproject.reflex.Reflex.Companion.unsafeInstance
 import taboolib.common.Inject
 import taboolib.common.platform.Ghost
 import taboolib.common.platform.event.EventPriority
 import taboolib.common.platform.event.SubscribeEvent
 import taboolib.common.util.t
-import taboolib.common.util.unsafeLazy
 import taboolib.module.nms.type.ChatColorFormat
 import taboolib.module.nms.type.PlayerScoreboard
 import taboolib.platform.util.*
@@ -148,34 +152,51 @@ class NMSScoreboardImpl : NMSScoreboard() {
 
     val uniqueOwner = listOf("§黒", "§黓", "§黔", "§黕", "§黖", "§黗", "§默", "§黙", "§黚", "§黛", "§黜", "§黝", "§點", "§黟", "§黠", "§黡", "§黢", "§黣", "§黤", "§黥", "§黦")
 
-    val universalTeamData: Class<*> by unsafeLazy {
-        PacketPlayOutScoreboardTeam::class.java.declaredClasses.first { !it.isEnum }
-    }
+    val version = MinecraftVersion.versionId
 
     fun getObjectiveName(player: Player): String {
         return player.getMetaFirstOrNull("t_scoreboard_objective_name")?.asString() ?: player.uniqueId.toString().substring(0..7)
     }
 
     override fun setupScoreboard(player: Player, color: Boolean, title: String) {
-        val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardObjective::class.java.unsafeInstance()
-        if (MinecraftVersion.isUniversal) {
-            packet.setProperty("objectiveName", getObjectiveName(player))
-            packet.setProperty("displayName", component(title))
-            packet.setProperty("renderType", net.minecraft.server.v1_16_R3.IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER)
-            packet.setProperty("method", 0)
-            // 1.21
-            if (MinecraftVersion.versionId >= 12005) {
-                packet.setProperty("numberFormat", Optional.of(BlankFormat.INSTANCE))
-            }
-            // 1.20.4
-            else if (MinecraftVersion.versionId >= 12004) {
-                packet.setProperty("numberFormat", BlankFormat.INSTANCE)
+        val objectiveName = getObjectiveName(player)
+        val score = if (MinecraftVersion.isUniversal) {
+            if (version >= 12003) {
+                ScoreboardObjective(
+                    Scoreboard(),
+                    objectiveName,
+                    IScoreboardCriteria.AIR,
+                    component(title) as IChatBaseComponent,
+                    IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER,
+                    true,
+                    BlankFormat.INSTANCE
+                )
+            } else {
+                ScoreboardObjective::class.java.invokeConstructor(
+                    Scoreboard(),
+                    objectiveName,
+                    IScoreboardCriteria.AIR,
+                    component(title),
+                    IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER,
+                    true
+                )
             }
         } else {
-            handle2DuplicatedPacket(player, packet, title)
-            packet.setProperty("d", 0)
+            if (version >= 11300) {
+                ScoreboardObjective::class.java.invokeConstructor(
+                    net.minecraft.server.v1_16_R3.Scoreboard(),
+                    objectiveName,
+                    net.minecraft.server.v1_16_R3.IScoreboardCriteria.AIR,
+                    component(title),
+                    net.minecraft.server.v1_16_R3.IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER
+                )
+            } else {
+                ScoreboardObjective::class.java.invokeConstructor(
+                    net.minecraft.server.v1_12_R1.Scoreboard(), objectiveName, net.minecraft.server.v1_12_R1.IScoreboardCriteria.i
+                ).apply { setProperty("e", title) }
+            }
         }
-        player.sendPacket(packet)
+        player.sendPacket(PacketPlayOutScoreboardObjective(score, 0))
         // 初始化颜色
         if (color) initTeam(player)
     }
@@ -188,34 +209,41 @@ class NMSScoreboardImpl : NMSScoreboard() {
     override fun changeContent(player: Player, content: List<String>, lastContent: Map<Int, String>): Boolean {
         val objectiveName = getObjectiveName(player)
         if (content.isEmpty()) {
-            val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardObjective::class.java.unsafeInstance()
-            if (MinecraftVersion.isUniversal) {
-                packet.setProperty("objectiveName", objectiveName)
-                packet.setProperty("displayName", component("ScoreBoard"))
-                packet.setProperty("renderType", net.minecraft.server.v1_16_R3.IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER)
-                packet.setProperty("method", 1)
-                // 1.21
-                if (MinecraftVersion.versionId >= 12005) {
-                    packet.setProperty("numberFormat", Optional.of(BlankFormat.INSTANCE))
-                }
-                // 1.20.4
-                else if (MinecraftVersion.versionId >= 12004) {
-                    packet.setProperty("numberFormat", BlankFormat.INSTANCE)
+            val score = if (MinecraftVersion.isUniversal) {
+                if (version >= 12003) {
+                    ScoreboardObjective(
+                        Scoreboard(),
+                        objectiveName,
+                        IScoreboardCriteria.AIR,
+                        component("ScoreBoard") as IChatBaseComponent,
+                        IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER,
+                        true,
+                        BlankFormat.INSTANCE
+                    )
+                } else {
+                    ScoreboardObjective::class.java.invokeConstructor(
+                        Scoreboard(), objectiveName, IScoreboardCriteria.AIR, component("ScoreBoard"), IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER
+                    )
                 }
             }
             // region Legacy Version
             else {
-                packet.setProperty("a", objectiveName)
-                if (MinecraftVersion.isHigherOrEqual(MinecraftVersion.V1_13)) {
-                    packet.setProperty("b", component("ScoreBoard"))
+                if (version >= 11300) {
+                    ScoreboardObjective::class.java.invokeConstructor(
+                        net.minecraft.server.v1_16_R3.Scoreboard(),
+                        objectiveName,
+                        net.minecraft.server.v1_16_R3.IScoreboardCriteria.AIR,
+                        component("ScoreBoard"),
+                        net.minecraft.server.v1_16_R3.IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER
+                    )
                 } else {
-                    packet.setProperty("b", "ScoreBoard")
+                    ScoreboardObjective::class.java.invokeConstructor(
+                        net.minecraft.server.v1_12_R1.Scoreboard(), objectiveName, net.minecraft.server.v1_12_R1.IScoreboardCriteria.i
+                    ).apply { setProperty("e", "ScoreBoard") }
                 }
-                packet.setProperty("c", net.minecraft.server.v1_16_R3.IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER)
-                packet.setProperty("d", 1)
             }
             // endregion
-            player.sendPacket(packet)
+            player.sendPacket(PacketPlayOutScoreboardObjective(score, 1))
             return true
         }
         val update = content.size != lastContent.size
@@ -232,41 +260,97 @@ class NMSScoreboardImpl : NMSScoreboard() {
 
     override fun display(player: Player) {
         val objectiveName = getObjectiveName(player)
-        val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardDisplayObjective::class.java.unsafeInstance()
-        if (MinecraftVersion.isUniversal) {
-            // 1.20.2
-            // Cannot cast java.lang.Integer to net.minecraft.world.scores.DisplaySlot
-            packet.setProperty("slot", if (MinecraftVersion.versionId >= 12002) DisplaySlot.SIDEBAR else 1)
-            packet.setProperty("objectiveName", objectiveName)
+        val packet = if (MinecraftVersion.isUniversal) {
+            if (version >= 12003) {
+                PacketPlayOutScoreboardDisplayObjective(
+                    DisplaySlot.SIDEBAR, ScoreboardObjective(
+                        Scoreboard(),
+                        objectiveName,
+                        IScoreboardCriteria.AIR,
+                        IChatBaseComponent.empty(),
+                        IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER,
+                        true,
+                        BlankFormat.INSTANCE
+                    )
+                )
+            } else {
+                PacketPlayOutScoreboardDisplayObjective::class.java.invokeConstructor(
+                    1, ScoreboardObjective::class.java.invokeConstructor(
+                        Scoreboard(),
+                        objectiveName,
+                        IScoreboardCriteria.AIR,
+                        IChatBaseComponent.empty(),
+                        IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER
+                    )
+                )
+            }
         }
         // region Legacy Version
         else {
-            packet.setProperty("a", 1)
-            packet.setProperty("b", objectiveName)
+            if (version >= 11300) {
+                PacketPlayOutScoreboardDisplayObjective::class.java.invokeConstructor(
+                    1, net.minecraft.server.v1_16_R3.ScoreboardObjective(
+                        net.minecraft.server.v1_16_R3.Scoreboard(),
+                        objectiveName,
+                        net.minecraft.server.v1_16_R3.IScoreboardCriteria.AIR,
+                        net.minecraft.server.v1_16_R3.ChatComponentText(""),
+                        net.minecraft.server.v1_16_R3.IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER
+                    )
+                )
+            } else {
+                PacketPlayOutScoreboardDisplayObjective::class.java.invokeConstructor(
+                    1, ScoreboardObjective::class.java.invokeConstructor(
+                        net.minecraft.server.v1_12_R1.Scoreboard(), objectiveName, net.minecraft.server.v1_12_R1.IScoreboardCriteria.i
+                    )
+                )
+            }
         }
         // endregion
         player.sendPacket(packet)
     }
 
+    @Suppress("CAST_NEVER_SUCCEEDS")
     override fun setDisplayName(player: Player, title: String) {
-        val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardObjective::class.java.unsafeInstance()
-        if (MinecraftVersion.isUniversal) {
-            packet.setProperty("objectiveName", getObjectiveName(player))
-            packet.setProperty("displayName", component(title))
-            packet.setProperty("renderType", net.minecraft.server.v1_16_R3.IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER)
-            packet.setProperty("method", 2)
-            // 1.21
-            if (MinecraftVersion.versionId >= 12005) {
-                packet.setProperty("numberFormat", Optional.empty<Any>())
+        val objectiveName = getObjectiveName(player)
+        val score = if (MinecraftVersion.isUniversal) {
+            if (version >= 12003) {
+                ScoreboardObjective(
+                    Scoreboard(),
+                    objectiveName,
+                    IScoreboardCriteria.AIR,
+                    component(title) as IChatBaseComponent,
+                    IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER,
+                    true,
+                    BlankFormat.INSTANCE
+                )
+            } else {
+                ScoreboardObjective::class.java.invokeConstructor(
+                    Scoreboard(),
+                    objectiveName,
+                    IScoreboardCriteria.AIR,
+                    component(title),
+                    IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER,
+                )
             }
         }
         // region Legacy Version
         else {
-            handle2DuplicatedPacket(player, packet, title)
-            packet.setProperty("d", 2)
+            if (version >= 11300) {
+                ScoreboardObjective::class.java.invokeConstructor(
+                    net.minecraft.server.v1_16_R3.Scoreboard(),
+                    objectiveName,
+                    net.minecraft.server.v1_16_R3.IScoreboardCriteria.AIR,
+                    component(title),
+                    net.minecraft.server.v1_16_R3.IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER
+                )
+            } else {
+                net.minecraft.server.v1_12_R1.ScoreboardObjective::class.java.invokeConstructor(
+                    Scoreboard(), objectiveName, net.minecraft.server.v1_12_R1.IScoreboardCriteria.i
+                ).also { it.setDisplayName(title) } as ScoreboardObjective
+            }
         }
         // endregion
-        player.sendPacket(packet)
+        player.sendPacket(PacketPlayOutScoreboardObjective(score, 2))
     }
 
     /**
@@ -284,54 +368,40 @@ class NMSScoreboardImpl : NMSScoreboard() {
             createTeam(player)
         }
         if (MinecraftVersion.isUniversal) {
-            val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardTeam::class.java.unsafeInstance()
-            packet.setProperty("method", 2)
-            packet.setProperty("name", player.displayName)
+            val team = ScoreboardTeam(Scoreboard(), player.displayName)
             // 队伍参数
-            val b = universalTeamData.unsafeInstance()
-            b.setProperty("displayName", component(player.displayName))
-            b.setProperty("playerPrefix", component(prefix))
-            b.setProperty("playerSuffix", component(suffix))
+            team.playerPrefix = component(prefix) as IChatBaseComponent
+            team.playerSuffix = component(suffix) as IChatBaseComponent
+            val packet = PacketPlayOutScoreboardTeam::class.java.invokeConstructor(
+                player.displayName, 2, Optional.of(PacketPlayOutScoreboardTeam.b(team)), listOf<String>()
+            )
             if (target == null) {
-                handle1DuplicatedPacketAll(b, packet, net.minecraft.server.v1_16_R3.EnumChatFormat.valueOf(color.name.uppercase()))
+                Bukkit.getServer().onlinePlayers.forEach { it.sendPacket(packet) }
             } else {
-                handle1DuplicatedPacket(b, packet, target, net.minecraft.server.v1_16_R3.EnumChatFormat.valueOf(color.name.uppercase()))
+                player.sendPacket(packet)
             }
             return
         }
         // region Legacy Version
-        if (MinecraftVersion.isHigherOrEqual(MinecraftVersion.V1_13)) {
-            val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardTeam()
-            packet.setProperty("a", player.displayName)
-            packet.setProperty("c", component(prefix))
-            packet.setProperty("d", component(suffix))
-            packet.setProperty("i", 2)
-            if (target == null) {
-                onlinePlayers.forEach { pp -> pp.sendPacket(packet) }
-            } else target.sendPacket(packet)
-            return
-        }
-        val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardTeam()
-        packet.setProperty("a", player.displayName)
-        packet.setProperty("c", prefix)
-        packet.setProperty("d", suffix)
+        val team = net.minecraft.server.v1_12_R1.ScoreboardTeam(net.minecraft.server.v1_12_R1.Scoreboard(), player.displayName)
+        team.prefix = prefix
+        team.suffix = suffix
+        val packet = net.minecraft.server.v1_12_R1.PacketPlayOutScoreboardTeam(team, 2)
         if (target == null) {
             onlinePlayers.forEach { pp -> pp.sendPacket(packet) }
-        } else {
-            target.sendPacket(packet)
-        }
+        } else target.sendPacket(packet)
         // endregion
     }
 
     private fun component(text: String): Any {
-        return if (MinecraftVersion.major >= 11) {
-            if (text.startsWith("{") && text.endsWith("}")) {
-                net.minecraft.server.v1_16_R3.IChatBaseComponent.ChatSerializer::class.java.invokeMethod<Any>("fromJson", text, isStatic = true)!!
-            } else {
-                net.minecraft.server.v1_16_R3.IChatBaseComponent::class.java.invokeMethod<Any>("literal", text, isStatic = true)!!
-            }
+        return if (text.startsWith("{") && text.endsWith("}")) {
+            sequenceOf(
+                { net.minecraft.server.v1_16_R3.IChatBaseComponent.ChatSerializer::class.java.invokeMethod<Any>("fromJson", text, isStatic = true)!! },
+                { net.minecraft.server.v1_16_R3.IChatBaseComponent.ChatSerializer.b(text)!! },
+                { IChatBaseComponent.ChatSerializer.fromJson(text, IRegistryCustom.EMPTY)!! }
+            ).firstNotNullOf { runCatching(it).getOrNull() }
         } else {
-            net.minecraft.server.v1_16_R3.ChatComponentText(text)
+            net.minecraft.server.v1_16_R3.IChatBaseComponent::class.java.invokeMethod<Any>("literal", text, isStatic = true)!!
         }
     }
 
@@ -362,96 +432,39 @@ class NMSScoreboardImpl : NMSScoreboard() {
         }
         uniqueOwner.forEach { color ->
             if (MinecraftVersion.isUniversal) {
-                val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardTeam::class.java.unsafeInstance()
-                packet.setProperty("method", 0)
-                packet.setProperty("name", color)
-                packet.setProperty("players", listOf(color))
                 // 队伍参数
-                val b = universalTeamData.unsafeInstance()
-                b.setProperty("displayName", component(color))
-                // 1.19 "unexpected null component"
-                if (MinecraftVersion.major >= 11) {
-                    b.setProperty("playerPrefix", net.minecraft.network.chat.IChatBaseComponent.empty())
-                    b.setProperty("playerSuffix", net.minecraft.network.chat.IChatBaseComponent.empty())
-                }
-                handle1DuplicatedPacket(b, packet, player, net.minecraft.server.v1_16_R3.EnumChatFormat.RESET)
+                val team = ScoreboardTeam(Scoreboard(), color)
+                player.sendPacket(
+                    PacketPlayOutScoreboardTeam::class.java.invokeConstructor(
+                        color, 0, Optional.of(PacketPlayOutScoreboardTeam.b(team)), listOf(color)
+                    )
+                )
                 return@forEach
             }
             // region Legacy Version
-            if (MinecraftVersion.isHigherOrEqual(MinecraftVersion.V1_13)) {
-                val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardTeam()
-                packet.setProperty("a", color)
-                packet.setProperty("b", component(color))
-                packet.setProperty("e", "always")
-                packet.setProperty("f", "always")
-                packet.setProperty("g", net.minecraft.server.v1_16_R3.EnumChatFormat.RESET)
-                packet.setProperty("h", listOf(color))
-                packet.setProperty("i", 0)
-                packet.setProperty("j", -1)
-                player.sendPacket(packet)
-                return@forEach
-            }
-            val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardTeam()
-            packet.setProperty("a", color)
-            packet.setProperty("b", color)
-            packet.setProperty("e", net.minecraft.server.v1_16_R3.ScoreboardTeamBase.EnumNameTagVisibility.ALWAYS.e)
-            // Collections$SingletonList cannot be cast to java.lang.Number
-            if (MinecraftVersion.major >= 1) {
-                packet.setProperty("f", "always")
-                packet.setProperty("g", -1)
-                packet.setProperty("h", listOf(color))
-                packet.setProperty("i", 0)
-            } else {
-                packet.setProperty("f", -1)
-                packet.setProperty("g", listOf(color))
-                packet.setProperty("h", 0)
-            }
-            player.sendPacket(packet)
+            val team = net.minecraft.server.v1_12_R1.ScoreboardTeam(net.minecraft.server.v1_12_R1.Scoreboard(), color)
+            val packet = net.minecraft.server.v1_12_R1.PacketPlayOutScoreboardTeam(team, 0)
+            packet.setProperty("h", listOf(color))
             // endregion
+            player.sendPacket(packet)
         }
         player.setMeta("t_scoreboard_init", true)
     }
 
     private fun createTeam(player: Player) {
         if (MinecraftVersion.isUniversal) {
-            val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardTeam::class.java.unsafeInstance()
-            packet.setProperty("method", 0)
-            packet.setProperty("name", player.displayName)
-            packet.setProperty("players", listOf(player.name))
             // 队伍参数
-            val b = universalTeamData.unsafeInstance()
-            b.setProperty("displayName", component(player.displayName))
-            handle1DuplicatedPacketAll(b, packet, net.minecraft.server.v1_16_R3.EnumChatFormat.RESET)
+            val packet = PacketPlayOutScoreboardTeam::class.java.invokeConstructor(
+                player.displayName, 0, Optional.of(PacketPlayOutScoreboardTeam.b(ScoreboardTeam(Scoreboard(), player.displayName))), listOf(player.name)
+            )
+            Bukkit.getServer().onlinePlayers.forEach { it.sendPacket(packet) }
             return
         }
         // region Legacy Version
-        if (MinecraftVersion.isHigherOrEqual(MinecraftVersion.V1_13)) {
-            val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardTeam()
-            packet.setProperty("a", player.displayName)
-            packet.setProperty("b", component(player.displayName))
-            packet.setProperty("e", "always")
-            packet.setProperty("f", "always")
-            packet.setProperty("g", net.minecraft.server.v1_16_R3.EnumChatFormat.RESET)
-            packet.setProperty("h", listOf(player.displayName))
-            packet.setProperty("i", 0)
-            packet.setProperty("j", -1)
-            onlinePlayers.forEach { p -> p.sendPacket(packet) }
-            return
-        }
-        val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardTeam()
-        packet.setProperty("a", player.displayName)
-        packet.setProperty("b", player.displayName)
-        packet.setProperty("e", net.minecraft.server.v1_16_R3.ScoreboardTeamBase.EnumNameTagVisibility.ALWAYS.e)
-        if (MinecraftVersion.major >= 1) {
-            packet.setProperty("f", "always")
-            packet.setProperty("g", -1)
-            packet.setProperty("h", listOf(player.displayName))
-            packet.setProperty("i", 0)
-        } else {
-            packet.setProperty("f", -1)
-            packet.setProperty("g", listOf(player.displayName))
-            packet.setProperty("h", 0)
-        }
+        val team = net.minecraft.server.v1_12_R1.ScoreboardTeam(net.minecraft.server.v1_12_R1.Scoreboard(), player.displayName)
+        team.setCanSeeFriendlyInvisibles(false)
+        val packet = net.minecraft.server.v1_12_R1.PacketPlayOutScoreboardTeam(team, 0)
+        packet.setProperty("h", listOf(player.displayName))
         onlinePlayers.forEach { p -> p.sendPacket(packet) }
         // endregion
     }
@@ -471,30 +484,21 @@ class NMSScoreboardImpl : NMSScoreboard() {
      */
     private fun sendTeamPrefixSuffix(player: Player, team: String, content: String) {
         if (MinecraftVersion.major >= 9) {
-            val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardTeam::class.java.unsafeInstance()
-            packet.setProperty("method", 2)
-            packet.setProperty("name", team)
-            packet.setProperty("players", listOf(team))
-            // 队伍参数
-            val b = universalTeamData.unsafeInstance()
-            b.setProperty("displayName", component(team))
-            b.setProperty("playerPrefix", component(content))
-            // 1.19 "unexpected null component"
-            if (MinecraftVersion.major >= 11) {
-                b.setProperty("playerSuffix", net.minecraft.network.chat.IChatBaseComponent.empty())
-            }
-            handle1DuplicatedPacket(b, packet, player, net.minecraft.server.v1_16_R3.EnumChatFormat.RESET)
+            val t = ScoreboardTeam(Scoreboard(), team)
+            t.playerPrefix = component(content) as IChatBaseComponent
+            player.sendPacket(PacketPlayOutScoreboardTeam::class.java.invokeConstructor(team, 2, Optional.of(PacketPlayOutScoreboardTeam.b(t)), listOf(team)))
+            return
+        }
+        if (version >= 11300) {
+            val t = net.minecraft.server.v1_16_R3.ScoreboardTeam(net.minecraft.server.v1_16_R3.Scoreboard(), team)
+            t.prefix = component(content) as net.minecraft.server.v1_16_R3.IChatBaseComponent
+            player.sendPacket(net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardTeam(t, 2).apply {
+                setProperty("h", listOf(team))
+            })
             return
         }
         // region Legacy Version
-        if (MinecraftVersion.isHigherOrEqual(MinecraftVersion.V1_13)) {
-            val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardTeam()
-            packet.setProperty("a", team) // 1.17 -> name
-            packet.setProperty("c", component(content)) // 1.17 -> playerPrefix
-            packet.setProperty("i", 2) // 1.17 -> method
-            player.sendPacket(packet)
-            return
-        }
+        val t = net.minecraft.server.v1_12_R1.ScoreboardTeam(net.minecraft.server.v1_12_R1.Scoreboard(), team)
         var prefix = content
         var suffix = ""
         if (content.length > 16) {
@@ -510,11 +514,10 @@ class NMSScoreboardImpl : NMSScoreboard() {
                 suffix = suffix.substring(0, 16)
             }
         }
-        val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardTeam()
-        packet.setProperty("a", team)
-        packet.setProperty(if (MinecraftVersion.major >= 1) "i" else "h", 2)
-        packet.setProperty("c", prefix)
-        packet.setProperty("d", suffix)
+        t.prefix = prefix
+        t.suffix = suffix
+        val packet = net.minecraft.server.v1_12_R1.PacketPlayOutScoreboardTeam(t, 2)
+        packet.setProperty("h", listOf(team))
         player.sendPacket(packet)
         // endregion
     }
@@ -527,7 +530,11 @@ class NMSScoreboardImpl : NMSScoreboard() {
                 // 1.20.5 后两个参数改为 Optional
                 // String owner, String objectiveName, int score, Optional<IChatBaseComponent> display, Optional<NumberFormat> numberFormat
                 if (MinecraftVersion.versionId >= 12005) {
-                    player.sendPacket(PacketPlayOutScoreboardScore::class.java.invokeConstructor(uniqueOwner[i], objectiveName, i, Optional.empty<Any>(), Optional.empty<Any>()))
+                    player.sendPacket(
+                        PacketPlayOutScoreboardScore::class.java.invokeConstructor(
+                            uniqueOwner[i], objectiveName, i, Optional.empty<Any>(), Optional.empty<Any>()
+                        )
+                    )
                     return@forEach
                 }
                 // region Legacy Version
@@ -541,20 +548,19 @@ class NMSScoreboardImpl : NMSScoreboard() {
                 if (MinecraftVersion.isHigherOrEqual(MinecraftVersion.V1_13)) {
                     player.sendPacket(
                         net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardScore(
-                            net.minecraft.server.v1_16_R3.ScoreboardServer.Action.CHANGE,
-                            objectiveName,
-                            uniqueOwner[i],
-                            i
+                            net.minecraft.server.v1_16_R3.ScoreboardServer.Action.CHANGE, objectiveName, uniqueOwner[i], i
                         )
                     )
                     return@forEach
                 }
                 // 1.12 反射处理
-                val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardScore()
-                packet.setProperty("a", uniqueOwner[i])
-                packet.setProperty("b", objectiveName)
-                packet.setProperty("c", i)
-                packet.setProperty("d", net.minecraft.server.v1_12_R1.PacketPlayOutScoreboardScore.EnumScoreboardAction.CHANGE)
+                val score = ScoreboardScore(
+                    net.minecraft.server.v1_12_R1.Scoreboard(), net.minecraft.server.v1_12_R1.ScoreboardObjective(
+                        net.minecraft.server.v1_12_R1.Scoreboard(), objectiveName, net.minecraft.server.v1_12_R1.IScoreboardCriteria.i
+                    ), uniqueOwner[i]
+                )
+                score.score = i
+                val packet = net.minecraft.server.v1_12_R1.PacketPlayOutScoreboardScore(score)
                 player.sendPacket(packet)
                 // endregion
             }
@@ -573,50 +579,16 @@ class NMSScoreboardImpl : NMSScoreboard() {
                 if (MinecraftVersion.isHigherOrEqual(MinecraftVersion.V1_13)) {
                     player.sendPacket(
                         net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardScore(
-                            net.minecraft.server.v1_16_R3.ScoreboardServer.Action.REMOVE,
-                            uniqueOwner[i],
-                            objectiveName,
-                            i
+                            net.minecraft.server.v1_16_R3.ScoreboardServer.Action.REMOVE, uniqueOwner[i], objectiveName, i
                         )
                     )
                     return@forEach
                 }
-                val packet = net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardScore()
-                packet.setProperty("a", uniqueOwner[i])
-                packet.setProperty("b", objectiveName)
-                packet.setProperty("d", net.minecraft.server.v1_12_R1.PacketPlayOutScoreboardScore.EnumScoreboardAction.REMOVE)
-                player.sendPacket(packet)
+                player.sendPacket(net.minecraft.server.v1_12_R1.PacketPlayOutScoreboardScore(objectiveName))
                 // endregion
             }
         }
     }
 
-    private fun handle1DuplicatedPacket(b: Any, packet: Any, player: Player, color: net.minecraft.server.v1_16_R3.EnumChatFormat) {
-        b.setProperty("nametagVisibility", "always")
-        b.setProperty("collisionRule", "always")
-        b.setProperty("color", color)
-        b.setProperty("options", 3)
-        packet.setProperty("parameters", Optional.of(b))
-        player.sendPacket(packet)
-    }
-
-    private fun handle1DuplicatedPacketAll(b: Any, packet: Any, color: net.minecraft.server.v1_16_R3.EnumChatFormat) {
-        b.setProperty("nametagVisibility", "always")
-        b.setProperty("collisionRule", "always")
-        b.setProperty("color", color)
-        b.setProperty("options", 3)
-        packet.setProperty("parameters", Optional.of(b))
-        Bukkit.getServer().onlinePlayers.forEach { it.sendPacket(packet) }
-    }
-
-    private fun handle2DuplicatedPacket(player: Player, packet: Any, title: String) {
-        packet.setProperty("a", getObjectiveName(player))
-        if (MinecraftVersion.isHigherOrEqual(MinecraftVersion.V1_13)) {
-            packet.setProperty("b", component(title))
-        } else {
-            packet.setProperty("b", title)
-        }
-        packet.setProperty("c", net.minecraft.server.v1_16_R3.IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER)
-    }
 }
 // endregion
