@@ -82,9 +82,18 @@ object ParserHolder {
         return fold(b, c) { fa, fb, fc -> Triple(fa, fb, fc) }
     }
 
-    /** 为可选 */
+    /** 为可选（失败不消费并回退） */
     fun <A> Parser<A>.option(): Parser<A?> {
-        return optional().map { it.orElse(null) }
+        return Parser.frame { r ->
+            r.mark()
+            try {
+                val parsed = this.reader.apply(r)
+                Action { frame -> parsed.run(frame).thenApply { it as A? } }
+            } catch (t: Throwable) {
+                r.reset()
+                now<A?> { null }
+            }
+        }
     }
 
     /** 默认值 */
