@@ -60,7 +60,7 @@ class SafeEntity<T : Entity>(private var entity: T) {
      * 在特定情况下，玩家实体可能会失效，因此需要重新从服务器获取
      */
     fun get(): T {
-        if (entity is Player && !entity.isValid) {
+        if (entity is Player && !(entity as Player).isOnline) {
             val playerExact = Bukkit.getPlayerExact(entity.name)
             if (playerExact != null) {
                 entity = playerExact as T
