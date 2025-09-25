@@ -143,19 +143,49 @@ abstract class NMSScoreboard {
      * @param createTeam 是否需要创建队伍
      * @param target 向该玩家发包, 如果为空则为全体发包
      */
-    abstract fun updateTeam(player: Player, prefix: String, suffix: String, color: ChatColorFormat, createTeam: Boolean, target: Player?)
+    abstract fun updateTeam(
+        player: Player,
+        prefix: String,
+        suffix: String,
+        color: ChatColorFormat,
+        createTeam: Boolean,
+        target: Player?
+    )
 }
 
 // region NMSScoreboardImpl
 @Suppress("unused", "DuplicatedCode")
 class NMSScoreboardImpl : NMSScoreboard() {
 
-    val uniqueOwner = listOf("§黒", "§黓", "§黔", "§黕", "§黖", "§黗", "§默", "§黙", "§黚", "§黛", "§黜", "§黝", "§點", "§黟", "§黠", "§黡", "§黢", "§黣", "§黤", "§黥", "§黦")
+    val uniqueOwner = listOf(
+        "§黒",
+        "§黓",
+        "§黔",
+        "§黕",
+        "§黖",
+        "§黗",
+        "§默",
+        "§黙",
+        "§黚",
+        "§黛",
+        "§黜",
+        "§黝",
+        "§點",
+        "§黟",
+        "§黠",
+        "§黡",
+        "§黢",
+        "§黣",
+        "§黤",
+        "§黥",
+        "§黦"
+    )
 
     val version = MinecraftVersion.versionId
 
     fun getObjectiveName(player: Player): String {
-        return player.getMetaFirstOrNull("t_scoreboard_objective_name")?.asString() ?: player.uniqueId.toString().substring(0..7)
+        return player.getMetaFirstOrNull("t_scoreboard_objective_name")?.asString() ?: player.uniqueId.toString()
+            .substring(0..7)
     }
 
     override fun setupScoreboard(player: Player, color: Boolean, title: String) {
@@ -172,13 +202,13 @@ class NMSScoreboardImpl : NMSScoreboard() {
                     BlankFormat.INSTANCE
                 )
             } else {
+                // 1.20.1 及更早版本使用反射调用 5 参构造
                 ScoreboardObjective::class.java.invokeConstructor(
                     Scoreboard(),
                     objectiveName,
                     IScoreboardCriteria.AIR,
                     component(title),
-                    IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER,
-                    true
+                    IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER
                 )
             }
         } else {
@@ -192,7 +222,9 @@ class NMSScoreboardImpl : NMSScoreboard() {
                 )
             } else {
                 ScoreboardObjective::class.java.invokeConstructor(
-                    net.minecraft.server.v1_12_R1.Scoreboard(), objectiveName, net.minecraft.server.v1_12_R1.IScoreboardCriteria.i
+                    net.minecraft.server.v1_12_R1.Scoreboard(),
+                    objectiveName,
+                    net.minecraft.server.v1_12_R1.IScoreboardCriteria.i
                 ).apply { setProperty("e", title) }
             }
         }
@@ -221,8 +253,13 @@ class NMSScoreboardImpl : NMSScoreboard() {
                         BlankFormat.INSTANCE
                     )
                 } else {
+                    // 1.20.1 及更早使用反射调用 5 参构造
                     ScoreboardObjective::class.java.invokeConstructor(
-                        Scoreboard(), objectiveName, IScoreboardCriteria.AIR, component("ScoreBoard"), IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER
+                        Scoreboard(),
+                        objectiveName,
+                        IScoreboardCriteria.AIR,
+                        component("ScoreBoard") as IChatBaseComponent,
+                        IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER
                     )
                 }
             }
@@ -238,7 +275,9 @@ class NMSScoreboardImpl : NMSScoreboard() {
                     )
                 } else {
                     ScoreboardObjective::class.java.invokeConstructor(
-                        net.minecraft.server.v1_12_R1.Scoreboard(), objectiveName, net.minecraft.server.v1_12_R1.IScoreboardCriteria.i
+                        net.minecraft.server.v1_12_R1.Scoreboard(),
+                        objectiveName,
+                        net.minecraft.server.v1_12_R1.IScoreboardCriteria.i
                     ).apply { setProperty("e", "ScoreBoard") }
                 }
             }
@@ -300,7 +339,9 @@ class NMSScoreboardImpl : NMSScoreboard() {
             } else {
                 PacketPlayOutScoreboardDisplayObjective::class.java.invokeConstructor(
                     1, ScoreboardObjective::class.java.invokeConstructor(
-                        net.minecraft.server.v1_12_R1.Scoreboard(), objectiveName, net.minecraft.server.v1_12_R1.IScoreboardCriteria.i
+                        net.minecraft.server.v1_12_R1.Scoreboard(),
+                        objectiveName,
+                        net.minecraft.server.v1_12_R1.IScoreboardCriteria.i
                     )
                 )
             }
@@ -324,12 +365,13 @@ class NMSScoreboardImpl : NMSScoreboard() {
                     BlankFormat.INSTANCE
                 )
             } else {
+                // 1.20.1 及更早使用反射调用 5 参构造
                 ScoreboardObjective::class.java.invokeConstructor(
                     Scoreboard(),
                     objectiveName,
                     IScoreboardCriteria.AIR,
-                    component(title),
-                    IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER,
+                    component(title) as IChatBaseComponent,
+                    IScoreboardCriteria.EnumScoreboardHealthDisplay.INTEGER
                 )
             }
         }
@@ -363,7 +405,14 @@ class NMSScoreboardImpl : NMSScoreboard() {
      *     private static final int METHOD_JOIN = 3;
      *     private static final int METHOD_LEAVE = 4;
      */
-    override fun updateTeam(player: Player, prefix: String, suffix: String, color: ChatColorFormat, createTeam: Boolean, target: Player?) {
+    override fun updateTeam(
+        player: Player,
+        prefix: String,
+        suffix: String,
+        color: ChatColorFormat,
+        createTeam: Boolean,
+        target: Player?
+    ) {
         if (createTeam) {
             createTeam(player)
         }
@@ -383,7 +432,8 @@ class NMSScoreboardImpl : NMSScoreboard() {
             return
         }
         // region Legacy Version
-        val team = net.minecraft.server.v1_12_R1.ScoreboardTeam(net.minecraft.server.v1_12_R1.Scoreboard(), player.displayName)
+        val team =
+            net.minecraft.server.v1_12_R1.ScoreboardTeam(net.minecraft.server.v1_12_R1.Scoreboard(), player.displayName)
         team.prefix = prefix
         team.suffix = suffix
         val packet = net.minecraft.server.v1_12_R1.PacketPlayOutScoreboardTeam(team, 2)
@@ -396,12 +446,22 @@ class NMSScoreboardImpl : NMSScoreboard() {
     private fun component(text: String): Any {
         return if (text.startsWith("{") && text.endsWith("}")) {
             sequenceOf(
-                { net.minecraft.server.v1_16_R3.IChatBaseComponent.ChatSerializer::class.java.invokeMethod<Any>("fromJson", text, isStatic = true)!! },
+                {
+                    net.minecraft.server.v1_16_R3.IChatBaseComponent.ChatSerializer::class.java.invokeMethod<Any>(
+                        "fromJson",
+                        text,
+                        isStatic = true
+                    )!!
+                },
                 { net.minecraft.server.v1_16_R3.IChatBaseComponent.ChatSerializer.b(text)!! },
                 { IChatBaseComponent.ChatSerializer.fromJson(text, IRegistryCustom.EMPTY)!! }
             ).firstNotNullOf { runCatching(it).getOrNull() }
         } else {
-            net.minecraft.server.v1_16_R3.IChatBaseComponent::class.java.invokeMethod<Any>("literal", text, isStatic = true)!!
+            net.minecraft.server.v1_16_R3.IChatBaseComponent::class.java.invokeMethod<Any>(
+                "literal",
+                text,
+                isStatic = true
+            )!!
         }
     }
 
@@ -455,13 +515,17 @@ class NMSScoreboardImpl : NMSScoreboard() {
         if (MinecraftVersion.isUniversal) {
             // 队伍参数
             val packet = PacketPlayOutScoreboardTeam::class.java.invokeConstructor(
-                player.displayName, 0, Optional.of(PacketPlayOutScoreboardTeam.b(ScoreboardTeam(Scoreboard(), player.displayName))), listOf(player.name)
+                player.displayName,
+                0,
+                Optional.of(PacketPlayOutScoreboardTeam.b(ScoreboardTeam(Scoreboard(), player.displayName))),
+                listOf(player.name)
             )
             Bukkit.getServer().onlinePlayers.forEach { it.sendPacket(packet) }
             return
         }
         // region Legacy Version
-        val team = net.minecraft.server.v1_12_R1.ScoreboardTeam(net.minecraft.server.v1_12_R1.Scoreboard(), player.displayName)
+        val team =
+            net.minecraft.server.v1_12_R1.ScoreboardTeam(net.minecraft.server.v1_12_R1.Scoreboard(), player.displayName)
         team.setCanSeeFriendlyInvisibles(false)
         val packet = net.minecraft.server.v1_12_R1.PacketPlayOutScoreboardTeam(team, 0)
         packet.setProperty("h", listOf(player.displayName))
@@ -486,7 +550,14 @@ class NMSScoreboardImpl : NMSScoreboard() {
         if (MinecraftVersion.major >= 9) {
             val t = ScoreboardTeam(Scoreboard(), team)
             t.playerPrefix = component(content) as IChatBaseComponent
-            player.sendPacket(PacketPlayOutScoreboardTeam::class.java.invokeConstructor(team, 2, Optional.of(PacketPlayOutScoreboardTeam.b(t)), listOf(team)))
+            player.sendPacket(
+                PacketPlayOutScoreboardTeam::class.java.invokeConstructor(
+                    team,
+                    2,
+                    Optional.of(PacketPlayOutScoreboardTeam.b(t)),
+                    listOf(team)
+                )
+            )
             return
         }
         if (version >= 11300) {
@@ -541,14 +612,25 @@ class NMSScoreboardImpl : NMSScoreboard() {
                 // 1.20.4 改为 Record
                 // String owner, String objectiveName, int score, @Nullable IChatBaseComponent display, @Nullable NumberFormat numberFormat
                 if (MinecraftVersion.majorLegacy > 12002) {
-                    player.sendPacket(PacketPlayOutScoreboardScore::class.java.invokeConstructor(uniqueOwner[i], objectiveName, i, null, null))
+                    player.sendPacket(
+                        PacketPlayOutScoreboardScore::class.java.invokeConstructor(
+                            uniqueOwner[i],
+                            objectiveName,
+                            i,
+                            null,
+                            null
+                        )
+                    )
                     return@forEach
                 }
                 // 1.13+ 直接实例化
                 if (MinecraftVersion.isHigherOrEqual(MinecraftVersion.V1_13)) {
                     player.sendPacket(
                         net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardScore(
-                            net.minecraft.server.v1_16_R3.ScoreboardServer.Action.CHANGE, objectiveName, uniqueOwner[i], i
+                            net.minecraft.server.v1_16_R3.ScoreboardServer.Action.CHANGE,
+                            objectiveName,
+                            uniqueOwner[i],
+                            i
                         )
                     )
                     return@forEach
@@ -556,7 +638,9 @@ class NMSScoreboardImpl : NMSScoreboard() {
                 // 1.12 反射处理
                 val score = ScoreboardScore(
                     net.minecraft.server.v1_12_R1.Scoreboard(), net.minecraft.server.v1_12_R1.ScoreboardObjective(
-                        net.minecraft.server.v1_12_R1.Scoreboard(), objectiveName, net.minecraft.server.v1_12_R1.IScoreboardCriteria.i
+                        net.minecraft.server.v1_12_R1.Scoreboard(),
+                        objectiveName,
+                        net.minecraft.server.v1_12_R1.IScoreboardCriteria.i
                     ), uniqueOwner[i]
                 )
                 score.score = i
@@ -571,7 +655,12 @@ class NMSScoreboardImpl : NMSScoreboard() {
                 // 1.20.4
                 // 变成单独一个包了 -> ClientboundResetScorePacket
                 if (MinecraftVersion.majorLegacy > 12002) {
-                    player.sendPacket(ClientboundResetScorePacket::class.java.invokeConstructor(uniqueOwner[i], objectiveName))
+                    player.sendPacket(
+                        ClientboundResetScorePacket::class.java.invokeConstructor(
+                            uniqueOwner[i],
+                            objectiveName
+                        )
+                    )
                     return@forEach
                 }
                 // region Legacy Version
@@ -579,7 +668,10 @@ class NMSScoreboardImpl : NMSScoreboard() {
                 if (MinecraftVersion.isHigherOrEqual(MinecraftVersion.V1_13)) {
                     player.sendPacket(
                         net.minecraft.server.v1_16_R3.PacketPlayOutScoreboardScore(
-                            net.minecraft.server.v1_16_R3.ScoreboardServer.Action.REMOVE, uniqueOwner[i], objectiveName, i
+                            net.minecraft.server.v1_16_R3.ScoreboardServer.Action.REMOVE,
+                            uniqueOwner[i],
+                            objectiveName,
+                            i
                         )
                     )
                     return@forEach
