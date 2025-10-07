@@ -59,7 +59,9 @@ internal object ClickListener {
         // 锁定主手
         if (builder.handLocked) {
             if (e.action == InventoryAction.COLLECT_TO_CURSOR) {
-                e.isCancelled = true
+                if (e.cursor?.isSimilar(e.inventory.getItem(e.whoClicked.inventory.heldItemSlot)) == true) {
+                    e.isCancelled = true
+                }
             } else if (e.rawSlot - e.inventory.size - 27 == e.whoClicked.inventory.heldItemSlot || e.click == org.bukkit.event.inventory.ClickType.NUMBER_KEY && e.hotbarButton == e.whoClicked.inventory.heldItemSlot) {
                 e.isCancelled = true
             }

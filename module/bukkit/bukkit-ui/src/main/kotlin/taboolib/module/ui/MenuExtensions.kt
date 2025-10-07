@@ -21,6 +21,7 @@ fun InventoryCloseEvent.returnItems(slots: List<Int>) = slots.forEach { player.g
  * @param failedCallback 条件检测失败后执行回调
  * */
 fun ClickEvent.conditionSlot(rawSlot: Int, condition: (put: ItemStack?, out: ItemStack?) -> Boolean, failedCallback: () -> Unit = {}): Boolean {
+    if (isCancelled) return false
     when(clickType) {
         CLICK -> {
             val event = clickEvent()
@@ -96,8 +97,14 @@ fun ClickEvent.conditionSlot(rawSlot: Int, condition: (put: ItemStack?, out: Ite
                 }
                 COLLECT_TO_CURSOR -> {
                     if (event.cursor?.isSimilar(event.view.getItem(rawSlot)) == true) {
-                        event.isCancelled = true
-                        return false
+                        val put = null
+                        // 此处数量无法确定
+                        val out = event.view.getItem(rawSlot)
+                        if (!condition(put, out)) {
+                            event.isCancelled = true
+                            failedCallback()
+                            return false
+                        }
                     }
                 }
                 HOTBAR_SWAP -> {
@@ -140,6 +147,7 @@ fun ClickEvent.conditionSlot(rawSlot: Int, condition: (put: ItemStack?, out: Ite
  * 限制槽位最大物品堆叠数量
  * */
 fun ClickEvent.amountCondition(rawSlot: Int, amount: Int, failedCallback: () -> Unit = {}): Boolean {
+    if (isCancelled) return false
     when(clickType) {
         CLICK -> {
             val event = clickEvent()
@@ -217,6 +225,7 @@ fun ClickEvent.amountCondition(rawSlot: Int, amount: Int, failedCallback: () -> 
  * @param reverse 反向锁定，仅保留 rawSlots 格子可交互
  * */
 fun ClickEvent.lockSlots(rawSlots: List<Int>, reverse: Boolean = false) {
+    if (isCancelled) return
     when(clickType) {
         CLICK -> {
             val event = clickEvent()
