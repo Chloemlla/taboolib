@@ -3,6 +3,7 @@ package taboolib.module.ui
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.entity.Player
+import org.bukkit.event.inventory.InventoryAction
 import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.event.inventory.InventoryCloseEvent
 import org.bukkit.event.inventory.InventoryDragEvent
@@ -56,8 +57,14 @@ internal object ClickListener {
     fun onClick(e: InventoryClickEvent) {
         val builder = MenuHolder.fromInventory(e.inventory) as? ChestImpl ?: return
         // 锁定主手
-        if (builder.handLocked && (e.rawSlot - e.inventory.size - 27 == e.whoClicked.inventory.heldItemSlot || e.click == org.bukkit.event.inventory.ClickType.NUMBER_KEY && e.hotbarButton == e.whoClicked.inventory.heldItemSlot)) {
-            e.isCancelled = true
+        if (builder.handLocked) {
+            if (e.action == InventoryAction.COLLECT_TO_CURSOR) {
+                if (e.cursor?.isSimilar(e.inventory.getItem(e.whoClicked.inventory.heldItemSlot)) == true) {
+                    e.isCancelled = true
+                }
+            } else if (e.rawSlot - e.inventory.size - 27 == e.whoClicked.inventory.heldItemSlot || e.click == org.bukkit.event.inventory.ClickType.NUMBER_KEY && e.hotbarButton == e.whoClicked.inventory.heldItemSlot) {
+                e.isCancelled = true
+            }
         }
         // 处理事件
         try {

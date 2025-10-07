@@ -10,7 +10,6 @@ import taboolib.common.platform.Awake
 import taboolib.common.platform.function.getOpenContainers
 import taboolib.common.platform.function.pluginId
 import taboolib.common.util.asList
-import java.util.function.Supplier
 
 /**
  * TabooLibKotlin
