@@ -87,6 +87,8 @@ public abstract class LightInjector implements Closeable {
 
     private static final Method GET_PLAYER_HANDLE = getMethod(getCBClass("entity.CraftPlayer"), "getHandle");
 
+    private static final Method GAME_PROFILE_ID = getMethod(GameProfile.class, MinecraftVersion.INSTANCE.getVersionId() > 12108 ? "id" : "getId");
+
     // Used to make identifiers unique if multiple instances are created. This doesn't need to be atomic
     // since it is called only from the constructor, which is assured to run on the main thread
     // 如果创建了多个实例，用于使标识符唯一。由于它仅在构造函数中调用，并确保在主线程上运行，因此不需要是原子的
@@ -589,7 +591,7 @@ public abstract class LightInjector implements Closeable {
                 // Player object should be in cache. If it's not, then it'll be PlayerJoinEvent to set the player
                 // 玩家对象应该在缓存中。如果不在缓存中，则将在 PlayerJoinEvent 中设置玩家
                 try {
-                    @Nullable Player player = playerCache.remove(((GameProfile) GAME_PROFILE_FROM_PACKET.get(packet)).getId());
+                    @Nullable Player player = playerCache.remove((UUID) GAME_PROFILE_ID.invoke(((GameProfile) GAME_PROFILE_FROM_PACKET.get(packet))));
                     // Set the player only if it was contained in the cache
                     // 仅在缓存中包含玩家时才设置玩家
                     if (player != null) {
