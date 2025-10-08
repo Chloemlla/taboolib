@@ -986,6 +986,31 @@ public final class XTag<T extends XBase<?, ?>> {
     @NotNull
     public static final XTag<XMaterial> NETHERITE_TOOLS;
     /**
+     * Tag representing all possible types of sword
+     */
+    @NotNull
+    public static final XTag<XMaterial> SWORDS;
+    /**
+     * Tag representing all possible types of pickaxe
+     */
+    @NotNull
+    public static final XTag<XMaterial> PICKAXES;
+    /**
+     * Tag representing all possible types of axe
+     */
+    @NotNull
+    public static final XTag<XMaterial> AXES;
+    /**
+     * Tag representing all possible types of shovel
+     */
+    @NotNull
+    public static final XTag<XMaterial> SHOVELS;
+    /**
+     * Tag representing all possible types of hoe
+     */
+    @NotNull
+    public static final XTag<XMaterial> HOES;
+    /**
      * Tag representing all blocks that could harm a player.
      */
     @NotNull
@@ -1865,7 +1890,7 @@ public final class XTag<T extends XBase<?, ?>> {
                 XMaterial.WAXED_OXIDIZED_CUT_COPPER,
                 XMaterial.LIGHT_WEIGHTED_PRESSURE_PLATE,
                 XMaterial.WAXED_WEATHERED_CUT_COPPER,
-                XMaterial.CHAIN,
+                XMaterial.IRON_CHAIN,
                 XMaterial.MAGMA_BLOCK,
                 XMaterial.STONE_PRESSURE_PLATE,
                 XMaterial.DARK_PRISMARINE,
@@ -2123,12 +2148,42 @@ public final class XTag<T extends XBase<?, ?>> {
                 XMaterial.DIAMOND_AXE,
                 XMaterial.DIAMOND_HOE,
                 XMaterial.DIAMOND_SHOVEL,
-                XMaterial.DIAMOND_SHOVEL);
+                XMaterial.DIAMOND_SWORD);
         NETHERITE_TOOLS = TagBuilder.simple(XMaterial.NETHERITE_PICKAXE,
                 XMaterial.NETHERITE_AXE,
                 XMaterial.NETHERITE_HOE,
                 XMaterial.NETHERITE_SHOVEL,
+                XMaterial.NETHERITE_SWORD);
+        SWORDS = TagBuilder.simple(XMaterial.WOODEN_SWORD,
+                XMaterial.STONE_SWORD,
+                XMaterial.IRON_SWORD,
+                XMaterial.GOLDEN_SWORD,
+                XMaterial.DIAMOND_SWORD,
+                XMaterial.NETHERITE_SWORD);
+        PICKAXES = TagBuilder.simple(XMaterial.WOODEN_PICKAXE,
+                XMaterial.STONE_PICKAXE,
+                XMaterial.IRON_PICKAXE,
+                XMaterial.GOLDEN_PICKAXE,
+                XMaterial.DIAMOND_PICKAXE,
+                XMaterial.NETHERITE_PICKAXE);
+        AXES = TagBuilder.simple(XMaterial.WOODEN_AXE,
+                XMaterial.STONE_AXE,
+                XMaterial.IRON_AXE,
+                XMaterial.GOLDEN_AXE,
+                XMaterial.DIAMOND_AXE,
+                XMaterial.NETHERITE_AXE);
+        SHOVELS = TagBuilder.simple(XMaterial.WOODEN_SHOVEL,
+                XMaterial.STONE_SHOVEL,
+                XMaterial.IRON_SHOVEL,
+                XMaterial.GOLDEN_SHOVEL,
+                XMaterial.DIAMOND_SHOVEL,
                 XMaterial.NETHERITE_SHOVEL);
+        HOES = TagBuilder.simple(XMaterial.WOODEN_HOE,
+                XMaterial.STONE_HOE,
+                XMaterial.IRON_HOE,
+                XMaterial.GOLDEN_HOE,
+                XMaterial.DIAMOND_HOE,
+                XMaterial.NETHERITE_HOE);
         ARMOR_PIECES = TagBuilder
                 .of(XMaterial.TURTLE_HELMET)
                 .inheritFrom(
@@ -2404,80 +2459,29 @@ public final class XTag<T extends XBase<?, ?>> {
                 XEnchantment.PUNCH,
                 XEnchantment.UNBREAKING);
 
-        CROSSBOW_ENCHANTS = TagBuilder.simple(XEnchantment.VANISHING_CURSE,
-                XEnchantment.MENDING,
-                XEnchantment.MULTISHOT,
-                XEnchantment.PIERCING,
-                XEnchantment.QUICK_CHARGE,
-                XEnchantment.UNBREAKING);
+        CROSSBOW_ENCHANTS = TagBuilder.simple(
+                XEnchantment.VANISHING_CURSE, XEnchantment.MENDING, XEnchantment.MULTISHOT,
+                XEnchantment.PIERCING, XEnchantment.QUICK_CHARGE, XEnchantment.UNBREAKING
+        );
 
-
-        MINEABLE_AXE = TagBuilder.of(XMaterial.COMPOSTER,
-                XMaterial.COCOA,
-                XMaterial.RED_MUSHROOM_BLOCK,
-                XMaterial.CRAFTING_TABLE,
-                XMaterial.TALL_GRASS,
-                XMaterial.BIG_DRIPLEAF_STEM,
-                XMaterial.RED_MUSHROOM,
-                XMaterial.JUKEBOX,
-                XMaterial.WARPED_FUNGUS,
-                XMaterial.DEAD_BUSH,
-                XMaterial.NOTE_BLOCK,
-                XMaterial.CRIMSON_FUNGUS,
-                XMaterial.MUSHROOM_STEM,
-                XMaterial.CHORUS_PLANT,
-                XMaterial.BEE_NEST,
-                XMaterial.BROWN_MUSHROOM_BLOCK,
-                XMaterial.JACK_O_LANTERN,
-                XMaterial.FERN,
-                XMaterial.NETHER_WART,
-                XMaterial.CARTOGRAPHY_TABLE,
-                XMaterial.CHEST,
-                XMaterial.SWEET_BERRY_BUSH,
-                XMaterial.BROWN_MUSHROOM,
-                XMaterial.CARVED_PUMPKIN,
-                XMaterial.SMITHING_TABLE,
-                XMaterial.GLOW_LICHEN,
-                XMaterial.SMALL_DRIPLEAF,
-                XMaterial.LOOM,
-                XMaterial.BEEHIVE,
-                XMaterial.SHORT_GRASS,
-                XMaterial.HANGING_ROOTS,
-                XMaterial.CHORUS_FLOWER,
-                XMaterial.ATTACHED_PUMPKIN_STEM,
-                XMaterial.BIG_DRIPLEAF,
-                XMaterial.DAYLIGHT_DETECTOR,
-                XMaterial.SPORE_BLOSSOM,
-                XMaterial.LILY_PAD,
-                XMaterial.TRAPPED_CHEST,
-                XMaterial.BARREL,
-                XMaterial.LARGE_FERN,
-                XMaterial.LECTERN,
-                XMaterial.SUGAR_CANE,
-                XMaterial.MELON,
-                XMaterial.ATTACHED_MELON_STEM,
-                XMaterial.PUMPKIN,
-                XMaterial.BAMBOO,
-                XMaterial.FLETCHING_TABLE,
-                XMaterial.BOOKSHELF
+        MINEABLE_AXE = TagBuilder.of(
+                XMaterial.COMPOSTER, XMaterial.COCOA, XMaterial.RED_MUSHROOM_BLOCK, XMaterial.CRAFTING_TABLE,
+                XMaterial.TALL_GRASS, XMaterial.BIG_DRIPLEAF_STEM, XMaterial.RED_MUSHROOM, XMaterial.JUKEBOX,
+                XMaterial.WARPED_FUNGUS, XMaterial.DEAD_BUSH, XMaterial.NOTE_BLOCK, XMaterial.CRIMSON_FUNGUS,
+                XMaterial.MUSHROOM_STEM, XMaterial.CHORUS_PLANT, XMaterial.BEE_NEST, XMaterial.BROWN_MUSHROOM_BLOCK,
+                XMaterial.JACK_O_LANTERN, XMaterial.FERN, XMaterial.NETHER_WART, XMaterial.CARTOGRAPHY_TABLE,
+                XMaterial.CHEST, XMaterial.SWEET_BERRY_BUSH, XMaterial.BROWN_MUSHROOM, XMaterial.CARVED_PUMPKIN,
+                XMaterial.SMITHING_TABLE, XMaterial.GLOW_LICHEN, XMaterial.SMALL_DRIPLEAF, XMaterial.LOOM,
+                XMaterial.BEEHIVE, XMaterial.SHORT_GRASS, XMaterial.HANGING_ROOTS, XMaterial.CHORUS_FLOWER,
+                XMaterial.ATTACHED_PUMPKIN_STEM, XMaterial.BIG_DRIPLEAF, XMaterial.DAYLIGHT_DETECTOR,
+                XMaterial.SPORE_BLOSSOM, XMaterial.LILY_PAD, XMaterial.TRAPPED_CHEST, XMaterial.BARREL,
+                XMaterial.LARGE_FERN, XMaterial.LECTERN, XMaterial.SUGAR_CANE, XMaterial.MELON,
+                XMaterial.ATTACHED_MELON_STEM, XMaterial.PUMPKIN, XMaterial.BAMBOO,
+                XMaterial.FLETCHING_TABLE, XMaterial.BOOKSHELF
         ).inheritFrom(
-                BANNERS,
-                SIGNS,
-                CAVE_VINES,
-                CROPS,
-                LOGS,
-                WOODEN_STAIRS,
-                WOODEN_SLABS,
-                WOODEN_PRESSURE_PLATES,
-                WOODEN_FENCES,
-                WOODEN_FENCE_GATES,
-                WOODEN_TRAPDOORS,
-                WOODEN_DOORS,
-                WOODEN_BUTTONS,
-                PLANKS,
-                SAPLINGS,
-                CLIMBABLE,
-                CAMPFIRES
+                WOODEN_STAIRS, WOODEN_SLABS, WOODEN_PRESSURE_PLATES, WOODEN_FENCES,
+                WOODEN_FENCE_GATES, WOODEN_TRAPDOORS, WOODEN_DOORS, WOODEN_BUTTONS,
+                BANNERS, SIGNS, CAVE_VINES, CROPS, LOGS, PLANKS, SAPLINGS, CLIMBABLE, CAMPFIRES
         ).build();
     }
 
@@ -2492,8 +2496,8 @@ public final class XTag<T extends XBase<?, ?>> {
                         XMaterial.BIG_DRIPLEAF_STEM, XMaterial.SWEET_BERRY_BUSH,
                         XMaterial.TORCHFLOWER_CROP, XMaterial.TWISTING_VINES_PLANT,
                         XMaterial.WEEPING_VINES_PLANT, XMaterial.BAMBOO_SAPLING,
-                        XMaterial.CARROT, XMaterial.CARROTS, XMaterial.POTATO, XMaterial.POTATOES,
-                        XMaterial.BAMBOO_SAPLING, XMaterial.BAMBOO, XMaterial.CHORUS_PLANT,
+                        XMaterial.CARROTS, XMaterial.POTATOES,
+                        XMaterial.BAMBOO_SAPLING, XMaterial.CHORUS_PLANT,
                         XMaterial.KELP_PLANT, XMaterial.COCOA, XMaterial.TALL_SEAGRASS,
                         XMaterial.MELON_STEM, XMaterial.PUMPKIN_STEM,
                         XMaterial.ATTACHED_MELON_STEM, XMaterial.ATTACHED_PUMPKIN_STEM

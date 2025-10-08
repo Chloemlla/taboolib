@@ -316,7 +316,7 @@ public enum XMaterial implements XBase<XMaterial, Material> {
     CARROTS("CARROT"),
     CARROT_ON_A_STICK("CARROT_STICK"),
     CARTOGRAPHY_TABLE,
-    CARVED_PUMPKIN,
+    CARVED_PUMPKIN("PUMPKIN"),
     CAT_SPAWN_EGG,
     CAULDRON("CAULDRON", "CAULDRON_ITEM"),
     /**
@@ -328,7 +328,6 @@ public enum XMaterial implements XBase<XMaterial, Material> {
     CAVE_SPIDER_SPAWN_EGG(59, "MONSTER_EGG"),
     CAVE_VINES,
     CAVE_VINES_PLANT,
-    CHAIN,
     CHAINMAIL_BOOTS,
     CHAINMAIL_CHESTPLATE,
     CHAINMAIL_HELMET,
@@ -1019,6 +1018,8 @@ public enum XMaterial implements XBase<XMaterial, Material> {
     MUSIC_DISC_CREATOR,
     MUSIC_DISC_CREATOR_MUSIC_BOX,
     MUSIC_DISC_FAR("RECORD_5"),
+    @XInfo(since = "1.21.7")
+    MUSIC_DISC_LAVA_CHICKEN,
     MUSIC_DISC_MALL("RECORD_6"),
     MUSIC_DISC_MELLOHI("RECORD_7"),
     MUSIC_DISC_OTHERSIDE,
@@ -1797,6 +1798,83 @@ public enum XMaterial implements XBase<XMaterial, Material> {
     ZOMBIE_WALL_HEAD(2, "SKULL", "SKULL_ITEM"),
     ZOMBIFIED_PIGLIN_SPAWN_EGG(57, "MONSTER_EGG", "ZOMBIE_PIGMAN_SPAWN_EGG"),
 
+    @XInfo(since = "1.21.9") ACACIA_SHELF,
+    @XInfo(since = "1.21.9") BAMBOO_SHELF,
+    @XInfo(since = "1.21.9") BIRCH_SHELF,
+    @XInfo(since = "1.21.9") CHERRY_SHELF,
+    @XInfo(since = "1.21.9") CRIMSON_SHELF,
+    @XInfo(since = "1.21.9") DARK_OAK_SHELF,
+    @XInfo(since = "1.21.9") JUNGLE_SHELF,
+    @XInfo(since = "1.21.9") MANGROVE_SHELF,
+    @XInfo(since = "1.21.9") OAK_SHELF,
+    @XInfo(since = "1.21.9") PALE_OAK_SHELF,
+    @XInfo(since = "1.21.9") SPRUCE_SHELF,
+    @XInfo(since = "1.21.9") WARPED_SHELF,
+    @XInfo(since = "1.21.9") COPPER_TORCH,
+    @XInfo(since = "1.21.9") COPPER_BARS,
+    @XInfo(since = "1.21.9") EXPOSED_COPPER_BARS,
+    @XInfo(since = "1.21.9") WEATHERED_COPPER_BARS,
+    @XInfo(since = "1.21.9") OXIDIZED_COPPER_BARS,
+    @XInfo(since = "1.21.9") WAXED_COPPER_BARS,
+    @XInfo(since = "1.21.9") WAXED_EXPOSED_COPPER_BARS,
+    @XInfo(since = "1.21.9") WAXED_WEATHERED_COPPER_BARS,
+    @XInfo(since = "1.21.9") WAXED_OXIDIZED_COPPER_BARS,
+    @XInfo(since = "1.21.9")
+    @XChange(version = "1.21.9", from = "CHAIN", to = "IRON_CHAIN")
+    IRON_CHAIN("CHAIN"),
+    @XInfo(since = "1.21.9") COPPER_CHAIN,
+    @XInfo(since = "1.21.9") EXPOSED_COPPER_CHAIN,
+    @XInfo(since = "1.21.9") WEATHERED_COPPER_CHAIN,
+    @XInfo(since = "1.21.9") OXIDIZED_COPPER_CHAIN,
+    @XInfo(since = "1.21.9") WAXED_COPPER_CHAIN,
+    @XInfo(since = "1.21.9") WAXED_EXPOSED_COPPER_CHAIN,
+    @XInfo(since = "1.21.9") WAXED_WEATHERED_COPPER_CHAIN,
+    @XInfo(since = "1.21.9") WAXED_OXIDIZED_COPPER_CHAIN,
+    @XInfo(since = "1.21.9") EXPOSED_LIGHTNING_ROD,
+    @XInfo(since = "1.21.9") WEATHERED_LIGHTNING_ROD,
+    @XInfo(since = "1.21.9") OXIDIZED_LIGHTNING_ROD,
+    @XInfo(since = "1.21.9") WAXED_LIGHTNING_ROD,
+    @XInfo(since = "1.21.9") WAXED_EXPOSED_LIGHTNING_ROD,
+    @XInfo(since = "1.21.9") WAXED_WEATHERED_LIGHTNING_ROD,
+    @XInfo(since = "1.21.9") WAXED_OXIDIZED_LIGHTNING_ROD,
+    @XInfo(since = "1.21.9") COPPER_SWORD,
+    @XInfo(since = "1.21.9") COPPER_SHOVEL,
+    @XInfo(since = "1.21.9") COPPER_PICKAXE,
+    @XInfo(since = "1.21.9") COPPER_AXE,
+    @XInfo(since = "1.21.9") COPPER_HOE,
+    @XInfo(since = "1.21.9") COPPER_HELMET,
+    @XInfo(since = "1.21.9") COPPER_CHESTPLATE,
+    @XInfo(since = "1.21.9") COPPER_LEGGINGS,
+    @XInfo(since = "1.21.9") COPPER_BOOTS,
+    @XInfo(since = "1.21.9") COPPER_GOLEM_SPAWN_EGG,
+    @XInfo(since = "1.21.9") COPPER_HORSE_ARMOR,
+    @XInfo(since = "1.21.9") COPPER_NUGGET,
+    @XInfo(since = "1.21.9") COPPER_LANTERN,
+    @XInfo(since = "1.21.9") EXPOSED_COPPER_LANTERN,
+    @XInfo(since = "1.21.9") WEATHERED_COPPER_LANTERN,
+    @XInfo(since = "1.21.9") OXIDIZED_COPPER_LANTERN,
+    @XInfo(since = "1.21.9") WAXED_COPPER_LANTERN,
+    @XInfo(since = "1.21.9") WAXED_EXPOSED_COPPER_LANTERN,
+    @XInfo(since = "1.21.9") WAXED_WEATHERED_COPPER_LANTERN,
+    @XInfo(since = "1.21.9") WAXED_OXIDIZED_COPPER_LANTERN,
+    @XInfo(since = "1.21.9") COPPER_CHEST,
+    @XInfo(since = "1.21.9") EXPOSED_COPPER_CHEST,
+    @XInfo(since = "1.21.9") WEATHERED_COPPER_CHEST,
+    @XInfo(since = "1.21.9") OXIDIZED_COPPER_CHEST,
+    @XInfo(since = "1.21.9") WAXED_COPPER_CHEST,
+    @XInfo(since = "1.21.9") WAXED_EXPOSED_COPPER_CHEST,
+    @XInfo(since = "1.21.9") WAXED_WEATHERED_COPPER_CHEST,
+    @XInfo(since = "1.21.9") WAXED_OXIDIZED_COPPER_CHEST,
+    @XInfo(since = "1.21.9") COPPER_GOLEM_STATUE,
+    @XInfo(since = "1.21.9") EXPOSED_COPPER_GOLEM_STATUE,
+    @XInfo(since = "1.21.9") WEATHERED_COPPER_GOLEM_STATUE,
+    @XInfo(since = "1.21.9") OXIDIZED_COPPER_GOLEM_STATUE,
+    @XInfo(since = "1.21.9") WAXED_COPPER_GOLEM_STATUE,
+    @XInfo(since = "1.21.9") WAXED_EXPOSED_COPPER_GOLEM_STATUE,
+    @XInfo(since = "1.21.9") WAXED_WEATHERED_COPPER_GOLEM_STATUE,
+    @XInfo(since = "1.21.9") WAXED_OXIDIZED_COPPER_GOLEM_STATUE,
+    @XInfo(since = "1.21.9") COPPER_WALL_TORCH,
+
     ;
 
 
@@ -2055,7 +2133,7 @@ public enum XMaterial implements XBase<XMaterial, Material> {
         byte data = (byte) (Data.ISFLAT || material.equals("MAP") || item.getType().getMaxDurability() > 0 ? 0 : item.getDurability());
 
         // Versions 1.9-1.12 didn't really use the items data value.
-        if (supports(9) && !supports(13) && item.hasItemMeta() && material.equals("MONSTER_EGG")) {
+        if (Data.SUPPORTS_SpawnEggMeta && !supports(13) && item.hasItemMeta() && material.equals("MONSTER_EGG")) {
             ItemMeta meta = item.getItemMeta();
             if (meta instanceof SpawnEggMeta) {
                 SpawnEggMeta egg = (SpawnEggMeta) meta;
@@ -2517,5 +2595,21 @@ public enum XMaterial implements XBase<XMaterial, Material> {
          * @since 3.0.0
          */
         private static final boolean ISFLAT = supports(13);
+
+        /**
+         * Added around Minecraft v1.11
+         */
+        private static final boolean SUPPORTS_SpawnEggMeta;
+
+        static {
+            boolean supportsSpawnEggMeta;
+            try {
+                Class.forName("org.bukkit.inventory.meta.SpawnEggMeta");
+                supportsSpawnEggMeta = true;
+            } catch (ClassNotFoundException ex) {
+                supportsSpawnEggMeta = false;
+            }
+            SUPPORTS_SpawnEggMeta = supportsSpawnEggMeta;
+        }
     }
 }

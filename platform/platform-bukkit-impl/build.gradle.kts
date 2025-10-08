@@ -16,7 +16,7 @@ dependencies {
     compileOnly(project(":module:minecraft:minecraft-chat"))
 
     // 服务端
-    compileOnly("ink.ptms.core:v12104:12104:mapped")
+    compileOnly("ink.ptms.core:v12110:12110:mapped")
     compileOnly("io.paper:folia-api:1.21.4")
     compileOnly("net.md-5:bungeecord-chat:1.20")
 

@@ -86,10 +86,8 @@ public enum XParticle implements XBase<XParticle, Particle> {
     DRIPPING_DRIPSTONE_LAVA,
     DRIPPING_DRIPSTONE_WATER,
     DRIPPING_HONEY,
-
     @XChange(version = "v1.20.5", from = "DRIP_LAVA", to = "DRIPPING_LAVA")
     DRIPPING_LAVA("DRIP_LAVA"),
-
     DRIPPING_OBSIDIAN_TEAR,
 
     @XChange(version = "v1.20.5", from = "DRIP_WATER", to = "DRIPPING_WATER")
@@ -288,7 +286,10 @@ public enum XParticle implements XBase<XParticle, Particle> {
     WHITE_SMOKE,
 
     @XChange(version = "1.20.5", from = "SPELL_WITCH", to = "WITCH")
-    WITCH("SPELL_WITCH");
+    WITCH("SPELL_WITCH"),
+
+    @XInfo(since = "1.21.9") COPPER_FIRE_FLAME,
+    ;
 
     public static final XRegistry<XParticle, Particle> REGISTRY = Data.REGISTRY;
 
