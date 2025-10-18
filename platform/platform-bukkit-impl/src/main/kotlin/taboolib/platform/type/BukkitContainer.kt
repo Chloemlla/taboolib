@@ -1,12 +1,10 @@
 package taboolib.platform.type
 
 import org.bukkit.plugin.Plugin
-import org.tabooproject.reflex.Reflex.Companion.invokeLocalMethod
 import org.tabooproject.reflex.Reflex.Companion.invokeMethod
 import taboolib.common.OpenContainer
 import taboolib.common.OpenResult
 import taboolib.common.io.groupId
-import taboolib.common.io.isDebugMode
 import taboolib.common.io.taboolibId
 
 /**
@@ -22,8 +20,8 @@ class BukkitContainer(val plugin: Plugin) : OpenContainer {
     private val api = try {
         Class.forName("${plugin::class.java.groupId}.${taboolibId}.common.OpenAPI")
     } catch (ex: ClassNotFoundException) {
-        // 在调试模式下输出错误信息
-        if (isDebugMode) ex.printStackTrace()
+        // 总是输出错误信息
+        ex.printStackTrace()
         null
     }
 
@@ -39,7 +37,8 @@ class BukkitContainer(val plugin: Plugin) : OpenContainer {
         return try {
             OpenResult.cast(api?.invokeMethod<Any>("call", name, args, isStatic = true, remap = false) ?: error("OpenAPI not found in ${getName()}"))
         } catch (ex: NoSuchMethodException) {
-            if (isDebugMode) ex.printStackTrace()
+            // 总是输出错误信息
+            ex.printStackTrace()
             OpenResult.failed()
         }
     }
