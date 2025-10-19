@@ -90,7 +90,7 @@ class BukkitCommand : PlatformCommand {
                 // ClassCastException: Cannot cast java.lang.String to net.kyori.adventure.text.Component
                 pluginCommand.setProperty("permissionMessage", permissionMessage)
             } catch (ex: ClassCastException) {
-                pluginCommand.setProperty("permissionMessage", Component.text(permission))
+                pluginCommand.setProperty("permissionMessage", Component.text(permissionMessage))
             }
             // 注册权限
             fun registerPermission(permission: String, default: PermissionDefault) {
