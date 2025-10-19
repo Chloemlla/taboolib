@@ -53,8 +53,10 @@ public class IsolatedClassLoader extends URLClassLoader {
         excludedClasses.add("taboolib.common.ClassAppender$Callback");
 
         // 其他插件访问
-        excludedClasses.add("taboolib.common.OpenAPI");
         excludedClasses.add("taboolib.common.platform.Plugin");
+        excludedClasses.add("taboolib.common.OpenAPI");
+        excludedClasses.add("taboolib.common.OpenListener");
+        excludedClasses.add("taboolib.common.OpenResult");
 
         // 交叉访问
         excludedClasses.add("taboolib.common.LifeCycle");
