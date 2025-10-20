@@ -2,7 +2,6 @@ package taboolib.common.platform.command
 
 import taboolib.common.platform.ProxyCommandSender
 import taboolib.common.platform.command.component.CommandComponentDynamic
-import taboolib.common.platform.command.component.ExecuteContext
 import taboolib.common.platform.command.component.SuggestContext
 import taboolib.common.platform.function.allWorlds
 import taboolib.common.platform.function.onlinePlayers

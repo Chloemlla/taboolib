@@ -2,6 +2,7 @@ package taboolib.common.platform.command
 
 import taboolib.common.platform.command.component.CommandComponent
 import taboolib.common.platform.command.component.CommandComponentDynamic
+import taboolib.common.platform.command.component.CommandSuggestProviderLoader
 
 /**
  * 添加一层整型节点（自动约束）
@@ -16,7 +17,7 @@ fun CommandComponent.int(
     dynamic: CommandComponentDynamic.() -> Unit = {}
 ): CommandComponentDynamic {
     return dynamic(comment, optional, permission, dynamic).also {
-        CommandComponent.intSuggestProvider(it, comment, suggest)
+        CommandSuggestProviderLoader.getProvider().provideIntSuggest(it, comment, suggest)
     }
 }
 
@@ -33,7 +34,7 @@ fun CommandComponent.decimal(
     dynamic: CommandComponentDynamic.() -> Unit = {}
 ): CommandComponentDynamic {
     return dynamic(comment, optional, permission, dynamic).also {
-        CommandComponent.decimalSuggestProvider(it, comment, suggest)
+        CommandSuggestProviderLoader.getProvider().provideDecimalSuggest(it, comment, suggest)
     }
 }
 
@@ -47,7 +48,7 @@ fun CommandComponent.bool(
     dynamic: CommandComponentDynamic.() -> Unit = {}
 ): CommandComponentDynamic {
     return dynamic(comment, optional, permission, dynamic).also {
-        CommandComponent.boolSuggestProvider(it, comment)
+        CommandSuggestProviderLoader.getProvider().provideBoolSuggest(it, comment)
     }
 }
 
@@ -64,6 +65,6 @@ fun CommandComponent.player(
     dynamic: CommandComponentDynamic.() -> Unit = {}
 ): CommandComponentDynamic {
     return dynamic(comment, optional, permission, dynamic).also {
-        CommandComponent.playerSuggestProvider(it, comment, suggest)
+        CommandSuggestProviderLoader.getProvider().providePlayerSuggest(it, comment, suggest)
     }
 }
