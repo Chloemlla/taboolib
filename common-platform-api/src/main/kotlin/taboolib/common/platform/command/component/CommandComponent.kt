@@ -1,6 +1,11 @@
 package taboolib.common.platform.command.component
 
 import taboolib.common.platform.command.CommandContext
+import taboolib.common.platform.command.restrictDouble
+import taboolib.common.platform.command.restrictInt
+import taboolib.common.platform.command.suggestBoolean
+import taboolib.common.platform.command.suggestPlayers
+import taboolib.common.platform.command.suggestUncheck
 
 abstract class CommandComponent(val index: Int, var optional: Boolean, val permission: String = "") {
 
@@ -113,6 +118,35 @@ abstract class CommandComponent(val index: Int, var optional: Boolean, val permi
                 }
                 else -> error("Unknown component: ${it.javaClass.name}")
             }
+        }
+    }
+
+    companion object {
+
+        var intSuggestProvider: CommandComponentDynamic.(comment: String, suggest: List<String>) -> Unit = { comment, suggest ->
+            // 如果没有额外建议则约束参数输入
+            if (suggest.isEmpty()) {
+                restrictInt()
+            } else {
+                suggestUncheck { suggest }
+            }
+        }
+
+        var decimalSuggestProvider: CommandComponentDynamic.(comment: String, suggest: List<String>) -> Unit = { comment, suggest ->
+            // 如果没有额外建议则约束参数输入
+            if (suggest.isEmpty()) {
+                restrictDouble()
+            } else {
+                suggestUncheck { suggest }
+            }
+        }
+
+        var boolSuggestProvider: CommandComponentDynamic.(comment: String) -> Unit = { comment ->
+            suggestBoolean()
+        }
+
+        var playerSuggestProvider: CommandComponentDynamic.(comment: String, suggest: List<String>) -> Unit = { comment, suggest ->
+            suggestPlayers(suggest)
         }
     }
 }

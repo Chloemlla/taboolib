@@ -16,12 +16,7 @@ fun CommandComponent.int(
     dynamic: CommandComponentDynamic.() -> Unit = {}
 ): CommandComponentDynamic {
     return dynamic(comment, optional, permission, dynamic).also {
-        // 如果没有额外建议则约束参数输入
-        if (suggest.isEmpty()) {
-            it.restrictInt()
-        } else {
-            it.suggestUncheck { suggest }
-        }
+        CommandComponent.intSuggestProvider(it, comment, suggest)
     }
 }
 
@@ -38,12 +33,7 @@ fun CommandComponent.decimal(
     dynamic: CommandComponentDynamic.() -> Unit = {}
 ): CommandComponentDynamic {
     return dynamic(comment, optional, permission, dynamic).also {
-        // 如果没有额外建议则约束参数输入
-        if (suggest.isEmpty()) {
-            it.restrictDouble()
-        } else {
-            it.suggestUncheck { suggest }
-        }
+        CommandComponent.decimalSuggestProvider(it, comment, suggest)
     }
 }
 
@@ -56,7 +46,9 @@ fun CommandComponent.bool(
     permission: String = "",
     dynamic: CommandComponentDynamic.() -> Unit = {}
 ): CommandComponentDynamic {
-    return dynamic(comment, optional, permission, dynamic).suggestBoolean()
+    return dynamic(comment, optional, permission, dynamic).also {
+        CommandComponent.boolSuggestProvider(it, comment)
+    }
 }
 
 /**
@@ -71,5 +63,7 @@ fun CommandComponent.player(
     permission: String = "",
     dynamic: CommandComponentDynamic.() -> Unit = {}
 ): CommandComponentDynamic {
-    return dynamic(comment, optional, permission, dynamic).suggestPlayers(suggest)
+    return dynamic(comment, optional, permission, dynamic).also {
+        CommandComponent.playerSuggestProvider(it, comment, suggest)
+    }
 }
