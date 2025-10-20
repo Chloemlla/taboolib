@@ -51,8 +51,11 @@ class AsmClassTranslation(val source: String) {
         }
         val bytes = inputStream.readBytes()
         val srcVersion = bytes.digest()
+        // 将源代码版本与环境信息组合，生成复合缓存键
+        val targetEnvironmentInfo = getTargetEnvironmentInfo()
+        val combinedVersion = (srcVersion + targetEnvironmentInfo).digest()
         // 若存在缓存则直接读取
-        val (cacheClass, cost) = execution { BinaryCache.read("remap/$source", srcVersion) { AsmClassLoader.createNewClass(source, it) } }
+        val (cacheClass, cost) = execution { BinaryCache.read("remap/$source", combinedVersion) { AsmClassLoader.createNewClass(source, it) } }
         if (cacheClass != null) {
             debug("[AsmClassTranslation] 从缓存中加载 $source，用时 $cost 毫秒。")
             return cacheClass
@@ -73,10 +76,22 @@ class AsmClassTranslation(val source: String) {
             classReader.accept(ClassRemapper(classWriter, remapper), 0)
             val newBytes = classWriter.toByteArray()
             // 缓存
-            BinaryCache.save("remap/$source", srcVersion) { newBytes }
+            BinaryCache.save("remap/$source", combinedVersion) { newBytes }
             AsmClassLoader.createNewClass(source, newBytes)
         }
         debug("[AsmClassTranslation] 转译 $source，用时 $cost2 毫秒。")
         return newClass
+    }
+
+    /**
+     * 获取目标运行环境信息，用于区分不同的服务端环境
+     * 当环境发生变化时（如从 Spigot 切换到 Arclight），将强制重新转译
+     */
+    private fun getTargetEnvironmentInfo(): String {
+        val mcRunningVersion = MinecraftVersion.runningVersion
+        val mcNmsVersion = MinecraftVersion.minecraftVersion
+        val isUniversal = MinecraftVersion.isUniversal
+        val isUniversalCB = MinecraftVersion.isUniversalCraftBukkit
+        return "mcRunning:$mcRunningVersion-nms:$mcNmsVersion-universal:$isUniversal-universalCB:$isUniversalCB"
     }
 }
