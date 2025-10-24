@@ -10,6 +10,9 @@ import taboolib.common.platform.PlatformSide
 import taboolib.common.platform.event.SubscribeEvent
 import taboolib.common.platform.function.submit
 import taboolib.common.util.unsafeLazy
+import taboolib.platform.BukkitPlugin
+import taboolib.platform.Folia
+import taboolib.platform.FoliaExecutor
 import java.lang.reflect.Constructor
 import java.util.concurrent.ConcurrentHashMap
 
@@ -134,7 +137,13 @@ private object NMSSignListener {
                 MinecraftVersion.isHigherOrEqual(MinecraftVersion.V1_9) -> e.packet.read<Array<String>>("b")!!
                 else -> e.packet.read<Array<Any>>("b")!!.map { nmsProxy<NMSSign>().deserialize(it) }.toTypedArray()
             }
-            submit { function.invoke(lines) }
+            if (Folia.isFolia) {
+                FoliaExecutor.REGION_SCHEDULER.run(BukkitPlugin.getInstance(), e.player.location) {
+                    function.invoke(lines)
+                }
+            } else {
+                submit { function.invoke(lines) }
+            }
         }
     }
 }

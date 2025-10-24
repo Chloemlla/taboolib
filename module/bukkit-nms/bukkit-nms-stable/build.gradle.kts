@@ -10,6 +10,7 @@ dependencies {
     compileOnly(project(":module:bukkit:bukkit-util"))
     // 测试用
     compileOnly(project(":platform:platform-bukkit-impl"))
+    compileOnly(project(":platform:platform-bukkit"))
     compileOnly(project(":module:bukkit-nms"))
     // 服务端
     compileOnly("net.md-5:bungeecord-chat:1.17")
@@ -22,6 +23,7 @@ dependencies {
     compileOnly("com.mojang:brigadier:1.0.18")
     // DataSerializer
     compileOnly("io.netty:netty-all:4.1.73.Final")
+    compileOnly("io.paper:folia-api:1.20.4")
 }
 
 tasks {
