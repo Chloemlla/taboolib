@@ -70,6 +70,12 @@ open class StorableChestImpl(title: String) : ChestImpl(title), StorableChest {
     }
 
     override fun build(): Inventory {
+        buildRule()
+        // 生成页面
+        return super.build()
+    }
+
+    open fun buildRule() {
         // 生成点击回调
         selfClick {
             // 如果事件被取消则不再继续处理
@@ -78,58 +84,64 @@ open class StorableChestImpl(title: String) : ChestImpl(title), StorableChest {
             }
             // 处理拖拽事件
             if (it.clickType === ClickType.DRAG) {
-                // 阻止页面内的拖拽行为
-                it.dragEvent().rawSlots.forEach { slot ->
-                    if (slot < it.dragEvent().inventory.size) {
-                        it.isCancelled = true
-                    }
-                }
+                buildDragRule(it)
             }
             // 处理点击事件
             else if (it.clickType === ClickType.CLICK) {
-                // 阻止无法处理的合并行为
-                if (it.clickEvent().action == InventoryAction.COLLECT_TO_CURSOR) {
-                    it.isCancelled = true
-                    return@selfClick
-                }
-                val currentItem = it.currentItem
-                // 自动装填
-                if (it.clickEvent().click.isShiftClick && it.rawSlot >= it.inventory.size && currentItem.isNotAir()) {
-                    it.isCancelled = true
-                    // 获取有效位置
-                    val firstSlot = rule.firstSlot(it.inventory, currentItem)
-                    // 目标位置不存在任何物品
-                    // 防止覆盖物品
-                    if (firstSlot >= 0 && rule.readItem(it.inventory, firstSlot).isAir) {
-                        // 设置物品
-                        rule.writeItem(it.inventory, currentItem, firstSlot, it.clickEvent().click)
-                        // 移除物品
-                        it.currentItem?.type = Material.AIR
-                        it.currentItem = null
-                    }
-                } else if (it.rawSlot < it.inventory.size) {
-                    // 获取行为
-                    val action = when {
-                        it.clickEvent().click.isShiftClick && it.rawSlot >= 0 && it.rawSlot < it.inventory.size -> ActionQuickTake()
-                        it.clickEvent().click == org.bukkit.event.inventory.ClickType.NUMBER_KEY -> ActionKeyboard()
-                        else -> ActionClick()
-                    }
-                    val cursor = action.getCursor(it) ?: ItemStack(Material.AIR)
-                    // 点击有效位置
-                    if (rule.checkSlot(it.inventory, cursor, action.getCurrentSlot(it))) {
-                        it.isCancelled = true
-                        // 提取物品
-                        action.setCursor(it, rule.readItem(it.inventory, action.getCurrentSlot(it)))
-                        // 写入物品
-                        rule.writeItem(it.inventory, cursor, action.getCurrentSlot(it), it.clickEvent().click)
-                    } else if (it.rawSlot >= 0 && it.rawSlot < it.inventory.size) {
-                        it.isCancelled = true
-                    }
-                }
+                buildClickRule(it)
             }
         }
-        // 生成页面
-        return super.build()
+    }
+
+    open fun buildDragRule(it: ClickEvent) {
+        // 阻止页面内的拖拽行为
+        it.dragEvent().rawSlots.forEach { slot ->
+            if (slot < it.dragEvent().inventory.size) {
+                it.isCancelled = true
+            }
+        }
+    }
+
+    open fun buildClickRule(it: ClickEvent) {
+        // 阻止无法处理的合并行为
+        if (it.clickEvent().action == InventoryAction.COLLECT_TO_CURSOR) {
+            it.isCancelled = true
+            return
+        }
+        val currentItem = it.currentItem
+        // 自动装填
+        if (it.clickEvent().click.isShiftClick && it.rawSlot >= it.inventory.size && currentItem.isNotAir()) {
+            it.isCancelled = true
+            // 获取有效位置
+            val firstSlot = rule.firstSlot(it.inventory, currentItem)
+            // 目标位置不存在任何物品
+            // 防止覆盖物品
+            if (firstSlot >= 0 && rule.readItem(it.inventory, firstSlot).isAir) {
+                // 设置物品
+                rule.writeItem(it.inventory, currentItem, firstSlot, it.clickEvent().click)
+                // 移除物品
+                it.currentItem?.type = Material.AIR
+                it.currentItem = null
+            }
+        } else if (it.rawSlot < it.inventory.size) {
+            // 获取行为
+            val action = when {
+                it.clickEvent().click.isShiftClick && it.rawSlot >= 0 && it.rawSlot < it.inventory.size -> ActionQuickTake()
+                it.clickEvent().click == org.bukkit.event.inventory.ClickType.NUMBER_KEY -> ActionKeyboard()
+                else -> ActionClick()
+            }
+            val cursor = action.getCursor(it) ?: ItemStack(Material.AIR)
+            // 点击有效位置
+            if (rule.checkSlot(it.inventory, cursor, action.getCurrentSlot(it))) {
+                it.isCancelled = true
+                // 提取物品
+                action.setCursor(it, rule.readItem(it.inventory, action.getCurrentSlot(it)))
+                // 写入物品
+                rule.writeItem(it.inventory, cursor, action.getCurrentSlot(it), it.clickEvent().click)
+            } else if (it.rawSlot >= 0 && it.rawSlot < it.inventory.size) {
+                it.isCancelled = true
+            }
+        }
     }
 
     class RuleImpl : StorableChest.Rule {
