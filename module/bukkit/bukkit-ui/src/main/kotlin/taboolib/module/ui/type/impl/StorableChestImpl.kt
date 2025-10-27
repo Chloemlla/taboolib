@@ -94,10 +94,29 @@ open class StorableChestImpl(title: String) : ChestImpl(title), StorableChest {
     }
 
     open fun buildDragRule(it: ClickEvent) {
-        // 阻止页面内的拖拽行为
-        it.dragEvent().rawSlots.forEach { slot ->
-            if (slot < it.dragEvent().inventory.size) {
-                it.isCancelled = true
+        // 如果只有 1 格，映射为 ClickEvent
+        val rawSlots = it.dragEvent().rawSlots
+        if (rawSlots.size == 1) {
+            // 视为放下/交换行为
+            val clickSlot = rawSlots.first()
+            if (clickSlot < it.inventory.size) {
+                val cursor = it.dragEvent().oldCursor
+                // 点击有效位置
+                if (rule.checkSlot(it.inventory, cursor, clickSlot)) {
+                    // 提取物品
+                    it.dragEvent().cursor = rule.readItem(it.inventory, clickSlot)
+                    // 写入物品
+                    rule.writeItem(it.inventory, cursor, clickSlot, BukkitClickType.LEFT)
+                } else if (clickSlot >= 0 && clickSlot < it.inventory.size) {
+                    it.isCancelled = true
+                }
+            }
+        } else {
+            // 阻止页面内的多格拖拽行为
+            it.dragEvent().rawSlots.forEach { slot ->
+                if (slot < it.dragEvent().inventory.size) {
+                    it.isCancelled = true
+                }
             }
         }
     }
