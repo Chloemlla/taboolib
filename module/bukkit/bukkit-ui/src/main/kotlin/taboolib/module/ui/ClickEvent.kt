@@ -40,7 +40,10 @@ class ClickEvent(private val bukkitEvent: InventoryInteractEvent, val clickType:
         get() = when (clickType) {
             ClickType.CLICK -> clickEvent().rawSlot
             ClickType.VIRTUAL -> virtualEvent().clickSlot
-            else -> -1
+            ClickType.DRAG -> {
+                val rawSlots = dragEvent().rawSlots
+                if (rawSlots.size == 1) rawSlots.first() else -1
+            }
         }
 
     /** 键盘按键 */
@@ -65,6 +68,25 @@ class ClickEvent(private val bukkitEvent: InventoryInteractEvent, val clickType:
                 }
                 ClickType.VIRTUAL -> {
                     inventory.setItem(virtualEvent().clickSlot, item)
+                }
+                else -> {}
+            }
+        }
+
+    /** 获取或设置指针物品 */
+    var cursorItem: ItemStack?
+        get() = when (clickType) {
+            ClickType.CLICK -> clickEvent().cursor
+            ClickType.DRAG -> dragEvent().cursor
+            else -> null
+        }
+        set(item) {
+            when (clickType) {
+                ClickType.CLICK -> {
+                    clickEvent().whoClicked.setItemOnCursor(item)
+                }
+                ClickType.DRAG -> {
+                    dragEvent().cursor = item
                 }
                 else -> {}
             }
