@@ -133,14 +133,23 @@ open class StorableChestImpl(title: String) : ChestImpl(title), StorableChest {
             it.isCancelled = true
             // 获取有效位置
             val firstSlot = rule.firstSlot(it.inventory, currentItem)
-            // 目标位置不存在任何物品
-            // 防止覆盖物品
-            if (firstSlot >= 0 && rule.readItem(it.inventory, firstSlot).isAir) {
-                // 设置物品
-                rule.writeItem(it.inventory, currentItem, firstSlot, it.clickEvent().click)
-                // 移除物品
-                it.currentItem?.type = Material.AIR
-                it.currentItem = null
+            if (firstSlot >= 0) {
+                // 允许 Shift 交换物品
+                if (rule.shiftSwap(it.inventory, currentItem, firstSlot)) {
+                    // 提取物品
+                    it.currentItem = rule.readItem(it.inventory, firstSlot)
+                    // 写入物品
+                    rule.writeItem(it.inventory, currentItem, firstSlot, it.clickEvent().click)
+                }
+                // 目标位置不存在任何物品
+                // 防止覆盖物品
+                else if (rule.readItem(it.inventory, firstSlot).isAir) {
+                    // 设置物品
+                    rule.writeItem(it.inventory, currentItem, firstSlot, it.clickEvent().click)
+                    // 移除物品
+                    it.currentItem?.type = Material.AIR
+                    it.currentItem = null
+                }
             }
         } else if (it.rawSlot < it.inventory.size) {
             // 获取行为
@@ -182,18 +191,13 @@ open class StorableChestImpl(title: String) : ChestImpl(title), StorableChest {
             else null
         }
 
-        /**
-         * 定义判定位置
-         * 玩家是否可以将物品放入
-         */
+        /** 是否允许 Shift 交换物品 **/
+        var shiftSwap: ((inventory: Inventory, itemStack: ItemStack, slot: Int) -> Boolean) = { _, _, _ -> false }
+
         override fun checkSlot(intRange: Int, checkSlot: (inventory: Inventory, itemStack: ItemStack) -> Boolean) {
             checkSlot(intRange..intRange, checkSlot)
         }
 
-        /**
-         * 定义判定位置
-         * 玩家是否可以将物品放入
-         */
         override fun checkSlot(intRange: IntRange, callback: (inventory: Inventory, itemStack: ItemStack) -> Boolean) {
             val before = checkSlot
             checkSlot = { inventory, itemStack, slot ->
@@ -205,42 +209,29 @@ open class StorableChestImpl(title: String) : ChestImpl(title), StorableChest {
             }
         }
 
-        /**
-         * 定义判定位置
-         * 玩家是否可以将物品放入
-         */
         override fun checkSlot(callback: (inventory: Inventory, itemStack: ItemStack, slot: Int) -> Boolean) {
             val before = checkSlot
             checkSlot = { inventory, itemStack, slot -> callback(inventory, itemStack, slot) && before(inventory, itemStack, slot) }
         }
 
-        /**
-         * 获取页面中首个有效的位置
-         * 用于玩家 SHIFT 点击快速放入物品，不再触发 checkSlot 回调
-         */
         override fun firstSlot(firstSlot: (inventory: Inventory, itemStack: ItemStack) -> Int) {
             this.firstSlot = firstSlot
         }
 
-        /**
-         * 物品写入回调
-         */
         override fun writeItem(writeItem: (inventory: Inventory, itemStack: ItemStack, slot: Int) -> Unit) {
             this.writeItem = { inventory, itemStack, slot, _ -> writeItem(inventory, itemStack, slot) }
         }
 
-        /**
-         * 物品写入回调
-         */
         override fun writeItem(writeItem: (inventory: Inventory, itemStack: ItemStack, slot: Int, type: BukkitClickType) -> Unit) {
             this.writeItem = writeItem
         }
 
-        /**
-         * 读取物品回调
-         */
         override fun readItem(readItem: (inventory: Inventory, slot: Int) -> ItemStack?) {
             this.readItem = readItem
+        }
+
+        override fun shiftSwap(shiftSwap: (inventory: Inventory, itemStack: ItemStack, slot: Int) -> Boolean) {
+            this.shiftSwap = shiftSwap
         }
     }
 }

@@ -56,6 +56,11 @@ interface StorableChest : Chest {
          * 读取物品回调
          */
         fun readItem(readItem: (inventory: Inventory, slot: Int) -> ItemStack?)
+
+        /**
+         * 是否允许 Shift 交换物品
+         */
+        fun shiftSwap(shiftSwap: (inventory: Inventory, itemStack: ItemStack, slot: Int) -> Boolean)
     }
 }
 
