@@ -29,6 +29,8 @@ enum class Type(private val format: () -> ConfigFormat<out Config>) {
     @Deprecated("命名歧义", ReplaceWith("MINIMAL_JSON"))
     FAST_JSON({ JsonFormat.minimalEmptyTolerantInstance() });
 
+    private val cachedFormat: ConfigFormat<out Config> by lazy { format() }
+
     fun newFormat(): ConfigFormat<out Config> {
         return format()
     }
@@ -41,7 +43,7 @@ enum class Type(private val format: () -> ConfigFormat<out Config>) {
         }
 
         fun getType(format: ConfigFormat<*>): Type {
-            return values().first { it.newFormat().javaClass == format.javaClass }
+            return values().first { it.cachedFormat.javaClass == format.javaClass }
         }
     }
 }

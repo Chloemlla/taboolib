@@ -186,13 +186,24 @@ public final class ObjectConverter {
                     }
                 }
 
-                // 自定义 @Converter
-                Converter<Object, Object> converter = getConverter(field);
-                if (converter != null) {
-                    value = converter.convertFromField(value);
+                // 全局注册的转换器（优先于 @Conversion 注解）
+                Converter<Object, Object> registryConverter = ConverterRegistry.INSTANCE.getConverter(field.getType());
+                if (registryConverter != null) {
+                    value = registryConverter.convertFromField(value);
                     // 如果 value 返回为 Map 则转换为 Config
                     if (value instanceof Map) {
                         value = ConfigSection.Companion.toNightConfig$basic_configuration(((Map<?, ?>) value), destination);
+                    }
+                }
+                // 自定义 @Converter（如果全局转换器未处理）
+                else {
+                    Converter<Object, Object> converter = getConverter(field);
+                    if (converter != null) {
+                        value = converter.convertFromField(value);
+                        // 如果 value 返回为 Map 则转换为 Config
+                        if (value instanceof Map) {
+                            value = ConfigSection.Companion.toNightConfig$basic_configuration(((Map<?, ?>) value), destination);
+                        }
                     }
                 }
                 ConfigFormat<?> format = destination.configFormat();
@@ -285,10 +296,17 @@ public final class ObjectConverter {
                     }
                 }
 
-                // 自定义 @Converter
-                Converter<Object, Object> converter = getConverter(field);
-                if (converter != null) {
-                    value = converter.convertToField(ConfigSection.Companion.unwrap(value));
+                // 全局注册的转换器（优先于 @Conversion 注解）
+                Converter<Object, Object> registryConverter = ConverterRegistry.INSTANCE.getConverter(field.getType());
+                if (registryConverter != null) {
+                    value = registryConverter.convertToField(ConfigSection.Companion.unwrap(value));
+                }
+                // 自定义 @Converter（如果全局转换器未处理）
+                else {
+                    Converter<Object, Object> converter = getConverter(field);
+                    if (converter != null) {
+                        value = converter.convertToField(ConfigSection.Companion.unwrap(value));
+                    }
                 }
                 // 转换后的值为 null
                 if (value == null) {

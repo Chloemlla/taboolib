@@ -311,7 +311,7 @@ open class ConfigSection(var root: Config, override var name: String = "", overr
         }
 
         internal fun Map<*, *>.toNightConfig(parent: Config): Config {
-            val section = ConfigSection(parent)
+            val section = ConfigSection(parent.createSubConfig())
             forEach { (k, v) -> section[k.toString()] = v }
             return section.root
         }
