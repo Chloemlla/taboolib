@@ -1,9 +1,9 @@
 package taboolib.module.configuration
 
+import com.electronwill.nightconfig.core.AbstractConfig
 import com.electronwill.nightconfig.core.CommentedConfig
 import com.electronwill.nightconfig.core.Config
 import com.electronwill.nightconfig.core.EnumGetMethod
-import org.tabooproject.reflex.Reflex.Companion.setProperty
 import taboolib.common.util.asList
 import taboolib.common.util.decodeUnicode
 import taboolib.common5.Coerce
@@ -59,6 +59,7 @@ open class ConfigSection(var root: Config, override var name: String = "", overr
         return get(path, null)
     }
 
+    @Suppress("UNCHECKED_CAST")
     override fun get(path: String, def: Any?): Any? {
         // 不知道为什么大家都喜欢用 getConfigurationSection("")
         // 感觉都是一个师傅教的
@@ -77,8 +78,8 @@ open class ConfigSection(var root: Config, override var name: String = "", overr
             // 理论是无法获取到 Map 类型
             // 因为在 set 方法中 Map 会被转换为 Config 类型
             is Map<*, *> -> {
-                val subConfig = root.createSubConfig()
-                subConfig.setProperty("map", value)
+                val subConfig = root.createSubConfig() as AbstractConfig
+                subConfig.valueMap() += value as Map<String, Any?>
                 ConfigSection(subConfig, name, parent)
             }
             else -> unwrap(value)
@@ -90,7 +91,7 @@ open class ConfigSection(var root: Config, override var name: String = "", overr
         // @formatter:off
         when {
             value == null -> root.remove(path)
-            value is List<*> -> root.set<Any>(path, unwrap(value, this))
+            value is List<*> -> root.set(path, unwrap(value, this))
             value is Collection<*> && value !is List<*> -> set(path, value.toList())
             value is ConfigurationSection -> set(path, value.getNightConfig())
             value is Map<*, *> -> set(path, value.toNightConfig(this))
