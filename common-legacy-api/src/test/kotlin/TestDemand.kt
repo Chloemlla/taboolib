@@ -185,6 +185,47 @@ class DemandTest {
         assertEquals("-60", demandMixed.get(1))
         assertEquals("value", demandMixed.get("key"))
     }
+
+    @Test
+    @DisplayName("性能测试：一万次复杂解析")
+    fun testPerformanceWith10kIterations() {
+        // 准备多个复杂的测试用例
+        val testCases = listOf(
+            "command arg1 arg2 -key1 value1 -key2 \"value with spaces\" --tag1 --tag2",
+            "namespace arg1 -60 -key value --tag",
+            "complex -a -b -c value3 \"quoted arg\" --tag1 --tag2 --tag3 arg4 arg5",
+            "game player1 player2 -world \"My World\" -x 100 -y 64 -z -200 --force --silent",
+            "cmd \"arg with spaces\" -key1 \"value1\" -key2 \"value2\" --tag arg2 -key3 value3"
+        )
+
+        val iterations = 10000
+        val startTime = System.currentTimeMillis()
+
+        // 执行一万次解析
+        repeat(iterations) { i ->
+            val testCase = testCases[i % testCases.size]
+            val demand = Demand(testCase)
+
+            // 验证基本解析正确性（每1000次验证一次避免影响性能）
+            if (i % 1000 == 0) {
+                assertNotNull(demand.namespace)
+                assertTrue(demand.namespace.isNotEmpty() || testCase.isEmpty())
+            }
+        }
+
+        val endTime = System.currentTimeMillis()
+        val duration = endTime - startTime
+        val avgTime = duration.toDouble() / iterations
+
+        println("性能测试结果:")
+        println("- 总迭代次数: $iterations")
+        println("- 总耗时: ${duration}ms")
+        println("- 平均每次解析耗时: ${String.format("%.4f", avgTime)}ms")
+        println("- 每秒可处理: ${String.format("%.0f", 1000.0 / avgTime)} 次解析")
+
+        // 性能断言：平均每次解析应该少于1ms（可以根据实际情况调整）
+        assertTrue(avgTime < 1.0, "平均解析时间过长: ${avgTime}ms")
+    }
 }
 
 /**

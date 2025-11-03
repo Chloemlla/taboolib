@@ -38,6 +38,7 @@ package taboolib.common5
  * @author bkm016
  * @since 2020/11/22 2:51 下午
  */
+@Suppress("ReplaceSubstringWithDropLast", "ReplaceSubstringWithTake")
 class Demand(val source: String) {
 
     lateinit var namespace: String
@@ -66,7 +67,7 @@ class Demand(val source: String) {
             return
         }
         // 分割参数
-        val splitArgs = source.split(" ")
+        val splitArgs = source.split(' ')
         namespace = splitArgs.firstOrNull() ?: ""
         // 如果只有命名空间，直接返回
         if (splitArgs.size <= 1) {
@@ -111,19 +112,20 @@ class Demand(val source: String) {
         setKey: (String) -> Unit,
         setState: (ParseState) -> Unit
     ) {
+        val ch = arg[0]
         when {
             // 处理标签
-            arg.startsWith("--") -> {
+            arg.length > 1 && ch == '-' && arg[1] == '-' -> {
                 tags.add(arg.substring(2))
             }
             // 处理键
-            arg.startsWith("-") -> {
+            ch == '-' -> {
                 setKey(arg.substring(1))
                 setState(ParseState.AFTER_KEY)
             }
             // 处理带引号的参数
-            arg.startsWith("\"") -> {
-                if (arg.endsWith("\"") && !arg.endsWith("\\\"") && arg.length > 1) {
+            ch == '"' -> {
+                if (arg.endsWith('"') && !arg.endsWith("\\\"") && arg.length > 1) {
                     // 单个参数中的完整引号字符串
                     args.add(arg.substring(1, arg.length - 1).unescapeQuotes())
                 } else {
@@ -148,10 +150,10 @@ class Demand(val source: String) {
         currentKey: String?,
         setState: (ParseState) -> Unit
     ) {
-        if (arg.endsWith("\"") && !arg.endsWith("\\\"")) {
+        if (arg.endsWith('"') && !arg.endsWith("\\\"")) {
             // 引号结束
-            buffer.add(arg.dropLast(1))
-            val value = buffer.joinToString(" ").unescapeQuotes()
+            buffer.add(arg.substring(0, arg.length - 1))
+            val value = joinBuffer(buffer).unescapeQuotes()
             if (currentKey != null) {
                 dataMap[currentKey] = value
                 setState(ParseState.NORMAL)
@@ -183,8 +185,8 @@ class Demand(val source: String) {
         }
         when {
             // 处理带引号的值
-            arg.startsWith("\"") -> {
-                if (arg.endsWith("\"") && !arg.endsWith("\\\"") && arg.length > 1) {
+            arg.startsWith('"') -> {
+                if (arg.endsWith('"') && !arg.endsWith("\\\"") && arg.length > 1) {
                     // 单个参数中的完整引号字符串
                     dataMap[currentKey] = arg.substring(1, arg.length - 1).unescapeQuotes()
                     setKey(null)
@@ -196,7 +198,7 @@ class Demand(val source: String) {
                 }
             }
             // 处理新的标签或键（当前键没有值）
-            arg.startsWith("-") -> {
+            arg.startsWith('-') -> {
                 // 当前键没有值，将其作为普通参数
                 args.add("-$currentKey")
                 // 处理新的标签或键
@@ -222,13 +224,26 @@ class Demand(val source: String) {
      * 处理未闭合的引号
      */
     private fun handleUnclosedQuotes(buffer: ArrayList<String>, currentKey: String?) {
-        val value = buffer.joinToString(" ").unescapeQuotes()
+        val value = joinBuffer(buffer).unescapeQuotes()
         if (currentKey != null) {
             dataMap[currentKey] = value
         } else {
             args.add(value)
         }
         buffer.clear()
+    }
+
+    /**
+     * 优化的 buffer 拼接方法，使用 StringBuilder 替代 joinToString
+     */
+    private fun joinBuffer(buffer: ArrayList<String>): String {
+        if (buffer.isEmpty()) return ""
+        if (buffer.size == 1) return buffer[0]
+        val sb = StringBuilder(buffer[0])
+        for (i in 1 until buffer.size) {
+            sb.append(' ').append(buffer[i])
+        }
+        return sb.toString()
     }
 
     /**
