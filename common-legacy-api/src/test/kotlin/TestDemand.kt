@@ -147,14 +147,43 @@ class DemandTest {
         
         // 测试连字符开头的值（可能被误解为新的键）
         val demandWithHyphenAtStart = Demand("command -key1 -value-starts-with-hyphen")
-        // 这种情况下，"-value-starts-with-hyphen" 会被解析为一个新的键，而不是 key1 的值
-        assertTrue(demandWithHyphenAtStart.containsKey("value-starts-with-hyphen"))
-        assertEquals("", demandWithHyphenAtStart.get("value-starts-with-hyphen"))
-        assertEquals("", demandWithHyphenAtStart.get("key1"))
-        
+        // 这种情况下，"-value-starts-with-hyphen" 会被解析为一个新的键，
+        // 而 key1 没有值会被转换为普通参数，value-starts-with-hyphen 在最后也会被转换为普通参数
+        assertEquals(2, demandWithHyphenAtStart.args.size)
+        assertEquals("-key1", demandWithHyphenAtStart.get(0))
+        assertEquals("-value-starts-with-hyphen", demandWithHyphenAtStart.get(1))
+        assertTrue(demandWithHyphenAtStart.dataMap.isEmpty())
+
         // 测试使用引号包裹以连字符开头的值
         val demandWithQuotedHyphen = Demand("command -key1 \"-value-with-hyphen\"")
         assertEquals("-value-with-hyphen", demandWithQuotedHyphen.get("key1"))
+    }
+
+    @Test
+    @DisplayName("测试没有值的key被转换为args")
+    fun testKeyWithoutValueConvertedToArgs() {
+        // 测试负数被转换为args
+        val demandWithNegativeNumber = Demand("namespace -60")
+        assertEquals("namespace", demandWithNegativeNumber.namespace)
+        assertEquals(1, demandWithNegativeNumber.args.size)
+        assertEquals("-60", demandWithNegativeNumber.get(0))
+        assertTrue(demandWithNegativeNumber.dataMap.isEmpty())
+
+        // 测试连续的key被转换为args
+        val demandWithConsecutiveKeys = Demand("namespace -a -b")
+        assertEquals("namespace", demandWithConsecutiveKeys.namespace)
+        assertEquals(2, demandWithConsecutiveKeys.args.size)
+        assertEquals("-a", demandWithConsecutiveKeys.get(0))
+        assertEquals("-b", demandWithConsecutiveKeys.get(1))
+        assertTrue(demandWithConsecutiveKeys.dataMap.isEmpty())
+
+        // 测试混合情况
+        val demandMixed = Demand("namespace arg1 -60 -key value")
+        assertEquals("namespace", demandMixed.namespace)
+        assertEquals(2, demandMixed.args.size)
+        assertEquals("arg1", demandMixed.get(0))
+        assertEquals("-60", demandMixed.get(1))
+        assertEquals("value", demandMixed.get("key"))
     }
 }
 

@@ -41,6 +41,7 @@ package taboolib.common5
 class Demand(val source: String) {
 
     lateinit var namespace: String
+
     val dataMap = HashMap<String, String>()
     val args = ArrayList<String>()
     val tags = ArrayList<String>()
@@ -95,9 +96,9 @@ class Demand(val source: String) {
         if (state == ParseState.IN_QUOTES && buffer.isNotEmpty()) {
             handleUnclosedQuotes(buffer, currentKey)
         }
-        // 处理未赋值的键
+        // 处理未赋值的键（转换为args）
         if (state == ParseState.AFTER_KEY && currentKey != null) {
-            dataMap[currentKey!!] = ""
+            args.add("-$currentKey")
         }
     }
 
@@ -149,9 +150,8 @@ class Demand(val source: String) {
     ) {
         if (arg.endsWith("\"") && !arg.endsWith("\\\"")) {
             // 引号结束
-            buffer.add(arg.substring(0, arg.length - 1))
+            buffer.add(arg.dropLast(1))
             val value = buffer.joinToString(" ").unescapeQuotes()
-
             if (currentKey != null) {
                 dataMap[currentKey] = value
                 setState(ParseState.NORMAL)
@@ -197,8 +197,8 @@ class Demand(val source: String) {
             }
             // 处理新的标签或键（当前键没有值）
             arg.startsWith("-") -> {
-                // 当前键没有值，设置为空字符串
-                dataMap[currentKey] = ""
+                // 当前键没有值，将其作为普通参数
+                args.add("-$currentKey")
                 // 处理新的标签或键
                 if (arg.startsWith("--")) {
                     tags.add(arg.substring(2))
