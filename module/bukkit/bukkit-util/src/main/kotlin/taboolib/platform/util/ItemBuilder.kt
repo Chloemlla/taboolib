@@ -452,6 +452,11 @@ open class ItemBuilder {
             isHideTooltip = itemMeta.isHideTooltip
         } catch (_: Throwable) {
         }
+        // ItemName
+        try {
+            itemName = itemMeta.itemName
+        } catch (_: Throwable) {
+        }
     }
 }
 
