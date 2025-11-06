@@ -4,8 +4,8 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 // LettuceGithub： https://github.com/lettuce-io/lettuce-core
 
 dependencies {
-    compileOnly("io.lettuce:lettuce-core:6.3.2.RELEASE")
-    compileOnly("org.apache.commons:commons-pool2:2.11.1")
+    compileOnly("io.lettuce:lettuce-core:6.6.0.RELEASE")
+    compileOnly("org.apache.commons:commons-pool2:2.12.1")
     compileOnly(project(":common"))
     compileOnly(project(":common-env"))
     compileOnly(project(":common-util"))
@@ -15,6 +15,9 @@ dependencies {
 
 tasks {
     withType<ShadowJar> {
-        relocate("io.netty.resolver.dns", "io.netty.resolver.dns_4_1_107_final")
+        relocate("org.reactivestreams.", "org.reactivestreams_1_0_4.")
+        relocate("reactor.", "reactor_3_6_6.")
+        relocate("org.apache.commons.pool2.", "org.apache.commons.pool2_2_12_1.")
+        relocate("io.netty.", "io.netty._4_1_107_final.")
     }
 }
