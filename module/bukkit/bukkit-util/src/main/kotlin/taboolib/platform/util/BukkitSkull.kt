@@ -5,6 +5,7 @@ package taboolib.platform.util
 import com.google.gson.JsonParser
 import com.mojang.authlib.GameProfile
 import com.mojang.authlib.properties.Property
+import com.mojang.authlib.properties.PropertyMap
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.inventory.ItemStack
@@ -51,6 +52,12 @@ object BukkitSkull {
         Property::class.java.getDeclaredMethod("value")
     } catch (_: Throwable) {
         Property::class.java.getDeclaredMethod("getValue")
+    }
+    /** 获取 Properties 的方法，兼容高低不同版本 */
+    private val getPropertiesMethod = try {
+        GameProfile::class.java.getDeclaredMethod("getProperties")
+    } catch (_: Throwable) {
+        GameProfile::class.java.getDeclaredMethod("properties")
     }
     /** record ResolvableProfile(GameProfile gameProfile) */
     private val gameProfileMethod = runCatching {
@@ -164,7 +171,7 @@ object BukkitSkull {
             profile = gameProfileMethod?.get(profile)
         }
         if (profile is GameProfile) {
-            val properties = profile.properties["textures"] ?: return ""
+            val properties = (getPropertiesMethod.invoke(profile) as PropertyMap)["textures"] ?: return ""
             if (properties.isEmpty()) return ""
 
             for (property in properties) {
