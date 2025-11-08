@@ -5,6 +5,7 @@ import taboolib.common.platform.command.component.CommandComponentDynamic
 import taboolib.common.platform.command.component.SuggestContext
 import taboolib.common.platform.function.allWorlds
 import taboolib.common.platform.function.onlinePlayers
+import kotlin.enums.EnumEntries
 
 /**
  * 创建参数补全
@@ -32,15 +33,25 @@ fun CommandComponentDynamic.suggestBoolean(): CommandComponentDynamic {
 }
 
 /**
+ * 创建参数补全（仅枚举）
+ *
+ * @param suggest 额外建议
+ */
+@OptIn(ExperimentalStdlibApi::class)
+fun CommandComponentDynamic.suggestEnums(enums: EnumEntries<*>, suggest: List<String> = emptyList()): CommandComponentDynamic {
+    return suggest {
+        enums.map { it.name } + suggest
+    }
+}
+
+/**
  * 创建参数补全（仅在线玩家名称）
  *
  * @param suggest 额外建议
  */
 fun CommandComponentDynamic.suggestPlayers(suggest: List<String> = emptyList()): CommandComponentDynamic {
     return suggest {
-        val el = onlinePlayers().map { it.name }.toMutableList()
-        el += suggest
-        el
+        onlinePlayers().map { it.name } + suggest
     }
 }
 
@@ -51,8 +62,6 @@ fun CommandComponentDynamic.suggestPlayers(suggest: List<String> = emptyList()):
  */
 fun CommandComponentDynamic.suggestWorlds(suggest: List<String> = emptyList()): CommandComponentDynamic {
     return suggest {
-        val el = allWorlds().toMutableList()
-        el += suggest
-        el
+        allWorlds() + suggest
     }
 }

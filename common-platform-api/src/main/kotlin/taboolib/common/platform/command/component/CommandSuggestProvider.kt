@@ -1,5 +1,7 @@
 package taboolib.common.platform.command.component
 
+import kotlin.enums.EnumEntries
+
 /**
  * 命令建议提供者接口
  *
@@ -25,6 +27,16 @@ interface CommandSuggestProvider {
      * @param suggest 额外的建议列表
      */
     fun provideDecimalSuggest(component: CommandComponentDynamic, comment: String, suggest: List<String>)
+
+    /**
+     * 提供枚举类型的建议
+     *
+     * @param component 动态命令组件
+     * @param comment 注释
+     * @param suggest 额外的建议列表
+     */
+    @OptIn(ExperimentalStdlibApi::class)
+    fun provideEnumSuggest(component: CommandComponentDynamic, enums: EnumEntries<*>, comment: String, suggest: List<String>)
 
     /**
      * 提供布尔类型的建议

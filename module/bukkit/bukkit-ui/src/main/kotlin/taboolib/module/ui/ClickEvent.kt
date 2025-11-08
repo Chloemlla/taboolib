@@ -6,6 +6,7 @@ import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.event.inventory.InventoryInteractEvent
 import org.bukkit.inventory.Inventory
+import org.bukkit.inventory.InventoryView
 import org.bukkit.inventory.ItemStack
 import taboolib.common.util.t
 import taboolib.module.ui.type.Chest
@@ -23,6 +24,9 @@ class ClickEvent(private val bukkitEvent: InventoryInteractEvent, val clickType:
 
     val inventory: Inventory
         get() = bukkitEvent.inventory
+
+    val view: InventoryView
+        get() = bukkitEvent.view
 
     /** 影响物品 */
     val affectItems: List<ItemStack>

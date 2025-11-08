@@ -1,10 +1,7 @@
 package taboolib.common.platform.command.component
 
-import taboolib.common.platform.command.restrictDouble
-import taboolib.common.platform.command.restrictInt
-import taboolib.common.platform.command.suggestBoolean
-import taboolib.common.platform.command.suggestPlayers
-import taboolib.common.platform.command.suggestUncheck
+import taboolib.common.platform.command.*
+import kotlin.enums.EnumEntries
 
 /**
  * 默认的命令建议提供者实现
@@ -29,6 +26,11 @@ class DefaultCommandSuggestProvider : CommandSuggestProvider {
         }
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
+    override fun provideEnumSuggest(component: CommandComponentDynamic, enums: EnumEntries<*>, comment: String, suggest: List<String>) {
+        component.suggestEnums(enums, suggest)
+    }
+
     override fun provideBoolSuggest(component: CommandComponentDynamic, comment: String) {
         component.suggestBoolean()
     }
@@ -37,4 +39,3 @@ class DefaultCommandSuggestProvider : CommandSuggestProvider {
         component.suggestPlayers(suggest)
     }
 }
-
