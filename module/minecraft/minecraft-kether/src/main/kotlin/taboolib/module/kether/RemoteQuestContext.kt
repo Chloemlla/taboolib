@@ -36,7 +36,7 @@ class RemoteQuestContext(val remote: OpenContainer, val source: Any) : ScriptCon
         return source.invokeMethod("runActions", remap = false)!!
     }
 
-    override fun getExecutor(): QuestExecutor? {
+    override fun getExecutor(): QuestExecutor {
         return source.invokeMethod("getExecutor", remap = false)!!
     }
 
@@ -125,12 +125,12 @@ class RemoteQuestContext(val remote: OpenContainer, val source: Any) : ScriptCon
 
     class RemoteVarTable(val remote: OpenContainer, val source: Any) : QuestContext.VarTable {
 
-        override fun <T> get(name: String): Optional<T> {
-            return source.invokeMethod("get", name, remap = false)!!
+        override fun <T> get(name: String): Optional<T>? {
+            return source.invokeMethod("get", name, remap = false)
         }
 
-        override fun <T> getFuture(name: String): Optional<QuestFuture<T>> {
-            return source.invokeMethod("getFuture", name, remap = false)!!
+        override fun <T> getFuture(name: String): Optional<QuestFuture<T>>? {
+            return source.invokeMethod("getFuture", name, remap = false)
         }
 
         override fun set(name: String, value: Any?) {
