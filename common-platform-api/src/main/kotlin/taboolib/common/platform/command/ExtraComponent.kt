@@ -3,6 +3,7 @@ package taboolib.common.platform.command
 import taboolib.common.platform.command.component.CommandComponent
 import taboolib.common.platform.command.component.CommandComponentDynamic
 import taboolib.common.platform.command.component.CommandSuggestProviderLoader
+import kotlin.enums.EnumEntries
 
 /**
  * 添加一层整型节点（自动约束）
@@ -49,6 +50,25 @@ fun CommandComponent.bool(
 ): CommandComponentDynamic {
     return dynamic(comment, optional, permission, dynamic).also {
         CommandSuggestProviderLoader.getProvider().provideBoolSuggest(it, comment)
+    }
+}
+
+/**
+ * 添加一层枚举节点（自动约束、自动建议）
+ *
+ * @param suggest 额外建议
+ */
+@OptIn(ExperimentalStdlibApi::class)
+fun CommandComponent.enum(
+    enums: EnumEntries<*>,
+    comment: String = "enum",
+    suggest: List<String> = emptyList(),
+    optional: Boolean = false,
+    permission: String = "",
+    dynamic: CommandComponentDynamic.() -> Unit = {}
+): CommandComponentDynamic {
+    return dynamic(comment, optional, permission, dynamic).also {
+        CommandSuggestProviderLoader.getProvider().provideEnumSuggest(it, enums, comment, suggest)
     }
 }
 

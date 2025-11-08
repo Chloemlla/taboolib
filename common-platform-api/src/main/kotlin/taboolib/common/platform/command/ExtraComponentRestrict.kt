@@ -2,6 +2,7 @@ package taboolib.common.platform.command
 
 import taboolib.common.platform.ProxyCommandSender
 import taboolib.common.platform.command.component.CommandComponentDynamic
+import kotlin.enums.EnumEntries
 
 /**
  * 创建参数约束（仅 int 类型）
