@@ -16,7 +16,7 @@ fun <T> sync(func: () -> T): T {
     }
     val future = CompletableFuture<T>()
     submit { future.complete(func()) }
-    return future.get()
+    return future.join()
 }
 
 /**
@@ -31,5 +31,5 @@ fun <T> runSync(func: () -> T): T {
     }
     val future = CompletableFuture<T>()
     submit { future.complete(func()) }
-    return future.get()
+    return future.join()
 }
