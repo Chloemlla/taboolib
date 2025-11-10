@@ -8,6 +8,7 @@ import org.bukkit.event.player.PlayerQuitEvent
 import taboolib.common.Inject
 import taboolib.common.platform.Awake
 import taboolib.common.platform.Schedule
+import taboolib.common.platform.event.EventPriority
 import taboolib.common.platform.event.SubscribeEvent
 import taboolib.common.util.runSync
 import java.io.Closeable
@@ -41,23 +42,33 @@ class PlayerSessionMap<V : Any>(
      * 获取指定玩家 UUID 对应的会话对象；
      * 若玩家不在场或会话已过期，则返回 `null`。
      */
-    fun get(uuid: UUID): V? {
+    operator fun get(uuid: UUID): V? {
         val epoch = PlayerSessionLifecycle.currentEpoch(uuid) ?: return null
         return store[uuid]?.takeIf { it.epoch == epoch && !it.pendingRemoval }?.value
     }
 
     /**
-     * 获取指定玩家实体对应的会话对象，内部委托给 [get]。
+     * 获取指定玩家实体对应的会话对象。
+     * 内部委托给 [get]。
      */
-    fun get(player: Player): V? = get(player.uniqueId)
+    operator fun get(player: Player): V? = get(player.uniqueId)
 
     /**
      * 基于默认工厂获取或创建玩家会话。
      * 若未提供默认工厂，则返回 `null` 提示调用者使用其他重载。
+     * 内部委托给 [getOrCreate]。
      */
     fun getOrCreate(player: Player): V? {
         val factory = defaultFactory ?: return null
         return getOrCreate(player.uniqueId) { factory(player.uniqueId) }
+    }
+
+    /**
+     * 使用自定义供应函数获取或创建玩家会话。
+     * 内部委托给 [getOrCreate]。
+     */
+    fun getOrCreate(player: Player, supplier: () -> V): V? {
+        return getOrCreate(player.uniqueId, supplier)
     }
 
     /**
@@ -300,7 +311,7 @@ object PlayerSessionLifecycle {
     /**
      * 玩家进入服务器时分配新的会话代。
      */
-    @SubscribeEvent
+    @SubscribeEvent(EventPriority.LOWEST)
     private fun onJoin(event: PlayerJoinEvent) {
         if (!isEnabled.get()) return
         val uuid = event.player.uniqueId
@@ -312,7 +323,7 @@ object PlayerSessionLifecycle {
     /**
      * 玩家主动离线时清理会话。
      */
-    @SubscribeEvent
+    @SubscribeEvent(EventPriority.MONITOR)
     private fun onQuit(event: PlayerQuitEvent) {
         if (!isEnabled.get()) return
         endSession(event.player)
