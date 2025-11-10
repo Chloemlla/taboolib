@@ -24,6 +24,7 @@ import java.util.concurrent.locks.LockSupport
  * 每位玩家进入服务器都会分配一个递增的会话代（epoch），离线或被踢时该代会被移除，所有注册的容器会同步清除旧条目。
  * 任何与当前代不一致的值都会被视为过期，从而避免异步任务在玩家离线后继续创建或复活旧会话。
  * 过期条目通过延迟标记 + 定时清扫的策略批量移除，降低临界期内的哈希表抖动。
+ * 若值实现 [PlayerSessionClosable]，条目被移除或替换时会回调，方便业务层释放资源。
  */
 class PlayerSessionMap<V : Any>(
     private val defaultFactory: ((UUID) -> V)? = null,
@@ -81,11 +82,13 @@ class PlayerSessionMap<V : Any>(
                     // 并交由定时清扫统一 remove，避免在 compute 热点路径上立刻触发 HashMap 结构修改。
                     !PlayerSessionLifecycle.isOnline(uuid) -> {
                         if (old?.markForRemoval() == true) {
+                            old.invokeRemovalCallback(uuid)
                             flagCleanup()
                         }
                         old
                     }
                     else -> {
+                        old?.invokeRemovalCallback(uuid)
                         val value = cached ?: supplier().also { cached = it }
                         SessionEntry(epoch, value)
                     }
@@ -106,7 +109,7 @@ class PlayerSessionMap<V : Any>(
      * 主动移除指定 UUID 对应的会话数据。
      */
     fun remove(uuid: UUID) {
-        store.remove(uuid)
+        store.remove(uuid)?.invokeRemovalCallback(uuid)
     }
 
     /**
@@ -144,6 +147,7 @@ class PlayerSessionMap<V : Any>(
      * 清空容器中维护的所有会话。
      */
     fun clear() {
+        store.entries.forEach { (uuid, entry) -> entry.invokeRemovalCallback(uuid) }
         store.clear()
         cleanupRequested.set(false)
     }
@@ -162,6 +166,7 @@ class PlayerSessionMap<V : Any>(
     internal fun invalidate(uuid: UUID, epoch: Long) {
         store.computeIfPresent(uuid) { _, entry ->
             if (entry.epoch == epoch && entry.markForRemoval()) {
+                entry.invokeRemovalCallback(uuid)
                 flagCleanup()
             }
             entry
@@ -173,7 +178,12 @@ class PlayerSessionMap<V : Any>(
             return
         }
         store.entries.removeIf { (uuid, entry) ->
-            entry.pendingRemoval || PlayerSessionLifecycle.currentEpoch(uuid)?.let { it != entry.epoch } ?: true
+            if (entry.pendingRemoval || PlayerSessionLifecycle.currentEpoch(uuid)?.let { it != entry.epoch } ?: true) {
+                entry.invokeRemovalCallback(uuid)
+                true
+            } else {
+                false
+            }
         }
     }
 
@@ -205,6 +215,25 @@ class SessionEntry<V : Any>(val epoch: Long, val value: V) {
         }
         return false
     }
+
+    val removalCallbackInvoked = AtomicBoolean(false)
+
+    fun invokeRemovalCallback(uuid: UUID) {
+        if (removalCallbackInvoked.compareAndSet(false, true)) {
+            if (value is PlayerSessionClosable) {
+                value.onSessionRemove(uuid)
+            }
+        }
+    }
+}
+
+fun interface PlayerSessionClosable {
+
+    /**
+     * 当玩家会话条目被移除、替换或清理时触发。
+     * 注意：可能在异步线程调用，如需主线程操作请自行调度。
+     */
+    fun onSessionRemove(uuid: UUID)
 }
 
 /**
