@@ -26,9 +26,13 @@ import java.util.concurrent.locks.LockSupport
  * 任何与当前代不一致的值都会被视为过期，从而避免异步任务在玩家离线后继续创建或复活旧会话。
  * 过期条目通过延迟标记 + 定时清扫的策略批量移除，降低临界期内的哈希表抖动。
  * 若值实现 [PlayerSessionClosable]，条目被移除或替换时会回调，方便业务层释放资源。
+ *
+ * @param defaultFactory 默认工厂函数，用于 [getOrCreate] 无参版本
+ * @param manualRelease 是否开启手动释放模式。为 `true` 时，玩家退出不会自动清理会话，需要手动调用 [remove] 释放
  */
 class PlayerSessionMap<V : Any>(
     private val defaultFactory: ((UUID) -> V)? = null,
+    private val manualRelease: Boolean = false,
 ) : Closeable {
 
     private val store = ConcurrentHashMap<UUID, SessionEntry<V>>()
@@ -41,6 +45,10 @@ class PlayerSessionMap<V : Any>(
     /**
      * 基于玩家实体写入或替换会话对象。
      * 内部委托给 [set]。
+     *
+     * @param player 玩家实体
+     * @param value 会话对象
+     * @return 旧会话对象（若存在）
      */
     operator fun set(player: Player, value: V): V? = set(player.uniqueId, value)
 
@@ -49,6 +57,10 @@ class PlayerSessionMap<V : Any>(
      *
      * 仅当玩家当前仍在线时才会成功写入，并返回旧值（若存在）。
      * 若传入的值实现 [PlayerSessionClosable]，在旧值被替换或后续移除时会收到回调。
+     *
+     * @param uuid 玩家 UUID
+     * @param value 会话对象
+     * @return 旧会话对象（若存在）
      */
     operator fun set(uuid: UUID, value: V): V? {
         val epoch = PlayerSessionLifecycle.currentEpoch(uuid) ?: return null
@@ -65,6 +77,9 @@ class PlayerSessionMap<V : Any>(
     /**
      * 获取指定玩家 UUID 对应的会话对象；
      * 若玩家不在场或会话已过期，则返回 `null`。
+     *
+     * @param uuid 玩家 UUID
+     * @return 会话对象（若存在）
      */
     operator fun get(uuid: UUID): V? {
         val epoch = PlayerSessionLifecycle.currentEpoch(uuid) ?: return null
@@ -74,6 +89,9 @@ class PlayerSessionMap<V : Any>(
     /**
      * 获取指定玩家实体对应的会话对象。
      * 内部委托给 [get]。
+     *
+     * @param player 玩家实体
+     * @return 会话对象（若存在）
      */
     operator fun get(player: Player): V? = get(player.uniqueId)
 
@@ -81,6 +99,9 @@ class PlayerSessionMap<V : Any>(
      * 基于默认工厂获取或创建玩家会话。
      * 若未提供默认工厂，则返回 `null` 提示调用者使用其他重载。
      * 内部委托给 [getOrCreate]。
+     *
+     * @param player 玩家实体
+     * @return 会话对象（若存在）
      */
     fun getOrCreate(player: Player): V? {
         val factory = defaultFactory ?: return null
@@ -90,6 +111,10 @@ class PlayerSessionMap<V : Any>(
     /**
      * 使用自定义供应函数获取或创建玩家会话。
      * 内部委托给 [getOrCreate]。
+     *
+     * @param player 玩家实体
+     * @param supplier 会话对象供应函数
+     * @return 会话对象（若存在）
      */
     fun getOrCreate(player: Player, supplier: () -> V): V? {
         return getOrCreate(player.uniqueId, supplier)
@@ -104,6 +129,10 @@ class PlayerSessionMap<V : Any>(
      * 为兼顾正确性与性能，采用有界重试：
      * - 若在构建后检测到会话代发生变化，会在限定次数内重试，确保供应函数不会无限执行；
      * - 重试次数内仍无法获得稳定会话则返回 `null`，交由上层稍后重试，并在后期循环中加入轻量让步以避免忙等。
+     *
+     * @param uuid 玩家 UUID
+     * @param supplier 会话对象供应函数
+     * @return 会话对象（若存在）
      */
     fun getOrCreate(uuid: UUID, supplier: () -> V): V? {
         var cached: V? = null
@@ -143,26 +172,40 @@ class PlayerSessionMap<V : Any>(
 
     /**
      * 主动移除指定 UUID 对应的会话数据。
+     *
+     * @param uuid 玩家 UUID
+     * @param invokeRemovalCallback 是否调用移除回调
+     * @return 会话对象（若存在）
      */
-    fun remove(uuid: UUID) {
-        store.remove(uuid)?.invokeRemovalCallback(uuid)
+    fun remove(uuid: UUID, invokeRemovalCallback: Boolean = true): V? {
+        return store.remove(uuid)?.also { if (invokeRemovalCallback) it.invokeRemovalCallback(uuid) }?.value
     }
 
     /**
      * 主动移除指定玩家实体对应的会话数据。
+     *
+     * @param player 玩家实体
+     * @param invokeRemovalCallback 是否调用移除回调
+     * @return 会话对象（若存在）
      */
-    fun remove(player: Player) {
-        remove(player.uniqueId)
+    fun remove(player: Player, invokeRemovalCallback: Boolean = true): V? {
+        return remove(player.uniqueId, invokeRemovalCallback)
     }
 
     /**
      * 判断指定玩家实体是否拥有有效会话。
      * 内部委托给 [contains]。
+     *
+     * @param player 玩家实体
+     * @return 是否存在有效会话
      */
     fun contains(player: Player): Boolean = contains(player.uniqueId)
 
     /**
      * 判断指定玩家是否拥有有效会话。
+     *
+     * @param uuid 玩家 UUID
+     * @return 是否存在有效会话
      */
     fun contains(uuid: UUID): Boolean {
         val epoch = PlayerSessionLifecycle.currentEpoch(uuid) ?: return false
@@ -241,9 +284,27 @@ class PlayerSessionMap<V : Any>(
     }
 
     /**
+     * 不安全获取
+     * 不会检查会话是否过期
+     */
+    fun unsafeGet(uuid: UUID): V? {
+        return store[uuid]?.value
+    }
+
+    /**
+     * 不安全获取
+     * 不会检查会话是否过期
+     */
+    fun unsafeGet(player: Player): V? {
+        return unsafeGet(player.uniqueId)
+    }
+
+    /**
      * 供生命周期管理器调用，在会话代失效时删除对应条目。
+     * 如果开启了手动释放模式，此方法不会执行任何操作。
      */
     internal fun invalidate(uuid: UUID, epoch: Long) {
+        if (manualRelease) return
         store.computeIfPresent(uuid) { _, entry ->
             if (entry.epoch == epoch && entry.markForRemoval()) {
                 entry.invokeRemovalCallback(uuid)
@@ -397,15 +458,6 @@ object PlayerSessionLifecycle {
      */
     @SubscribeEvent(EventPriority.MONITOR)
     private fun onQuit(event: PlayerQuitEvent) {
-        if (!isEnabled.get()) return
-        endSession(event.player)
-    }
-
-    /**
-     * 玩家被踢出时清理会话。
-     */
-    @SubscribeEvent
-    private fun onKick(event: PlayerKickEvent) {
         if (!isEnabled.get()) return
         endSession(event.player)
     }
