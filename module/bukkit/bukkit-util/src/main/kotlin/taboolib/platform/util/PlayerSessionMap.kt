@@ -39,6 +39,30 @@ class PlayerSessionMap<V : Any>(
     }
 
     /**
+     * 基于玩家实体写入或替换会话对象。
+     * 内部委托给 [set]。
+     */
+    operator fun set(player: Player, value: V): V? = set(player.uniqueId, value)
+
+    /**
+     * 主动写入或替换指定玩家的会话对象。
+     *
+     * 仅当玩家当前仍在线时才会成功写入，并返回旧值（若存在）。
+     * 若传入的值实现 [PlayerSessionClosable]，在旧值被替换或后续移除时会收到回调。
+     */
+    operator fun set(uuid: UUID, value: V): V? {
+        val epoch = PlayerSessionLifecycle.currentEpoch(uuid) ?: return null
+        val newEntry = SessionEntry(epoch, value)
+        var previous: SessionEntry<V>? = null
+        store.compute(uuid) { _, old ->
+            previous = old
+            newEntry
+        }
+        previous?.invokeRemovalCallback(uuid)
+        return previous?.value
+    }
+
+    /**
      * 获取指定玩家 UUID 对应的会话对象；
      * 若玩家不在场或会话已过期，则返回 `null`。
      */
@@ -98,6 +122,7 @@ class PlayerSessionMap<V : Any>(
                         }
                         old
                     }
+
                     else -> {
                         old?.invokeRemovalCallback(uuid)
                         val value = cached ?: supplier().also { cached = it }
@@ -131,6 +156,20 @@ class PlayerSessionMap<V : Any>(
     }
 
     /**
+     * 判断指定玩家实体是否拥有有效会话。
+     * 内部委托给 [contains]。
+     */
+    fun contains(player: Player): Boolean = contains(player.uniqueId)
+
+    /**
+     * 判断指定玩家是否拥有有效会话。
+     */
+    fun contains(uuid: UUID): Boolean {
+        val epoch = PlayerSessionLifecycle.currentEpoch(uuid) ?: return false
+        return store[uuid]?.let { it.epoch == epoch && !it.pendingRemoval } ?: false
+    }
+
+    /**
      * 返回当前有效会话的惰性序列，只包含仍在线且会话代匹配的条目。
      */
     fun entries(): Sequence<Pair<UUID, V>> = store.entries.asSequence().mapNotNull { (uuid, entry) ->
@@ -143,14 +182,44 @@ class PlayerSessionMap<V : Any>(
     }
 
     /**
+     * 返回当前有效会话 key 的惰性序列。
+     */
+    fun keys(): Sequence<UUID> = store.entries.asSequence().mapNotNull { (uuid, entry) ->
+        val epoch = PlayerSessionLifecycle.currentEpoch(uuid)
+        if (epoch != null && entry.epoch == epoch && !entry.pendingRemoval) uuid else null
+    }
+
+    /**
      * 返回当前有效会话值的惰性序列，只包含仍在线且会话代匹配的条目。
      */
     fun values(): Sequence<V> = store.entries.asSequence().mapNotNull { (uuid, entry) ->
         val epoch = PlayerSessionLifecycle.currentEpoch(uuid)
-        if (epoch != null && entry.epoch == epoch && !entry.pendingRemoval) {
-            entry.value
-        } else {
-            null
+        if (epoch != null && entry.epoch == epoch && !entry.pendingRemoval) entry.value else null
+    }
+
+    /**
+     * 返回当前有效会话数量。
+     */
+    fun size(): Int {
+        var count = 0
+        store.forEach { (uuid, entry) ->
+            val epoch = PlayerSessionLifecycle.currentEpoch(uuid)
+            if (epoch != null && entry.epoch == epoch && !entry.pendingRemoval) {
+                count++
+            }
+        }
+        return count
+    }
+
+    /**
+     * 遍历当前所有有效会话。
+     */
+    fun forEach(action: (uuid: UUID, value: V) -> Unit) {
+        store.forEach { (uuid, entry) ->
+            val epoch = PlayerSessionLifecycle.currentEpoch(uuid)
+            if (epoch != null && entry.epoch == epoch && !entry.pendingRemoval) {
+                action(uuid, entry.value)
+            }
         }
     }
 
@@ -205,6 +274,7 @@ class PlayerSessionMap<V : Any>(
     private companion object {
         // 最大重试次数，用于处理会话代不一致的情况（限制供应函数重复执行次数）
         const val MAX_RETRY = 4
+
         // 触发让步的重试次数，用于平衡性能与正确性
         const val YIELD_AFTER = 1
     }
@@ -258,8 +328,10 @@ object PlayerSessionLifecycle {
 
     // 服务器是否已启动
     private var isServerStarted = false
+
     // 是否已启用会话代管理
     private val isEnabled = AtomicBoolean(false)
+
     // 已登录玩家 UUID 集
     private val onlinePlayers = ConcurrentHashMap.newKeySet<UUID>()
 
