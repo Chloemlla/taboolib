@@ -68,7 +68,7 @@ object PacketSender {
         val connection = getConnection(player)
         if (sendPacketMethod == null) {
             // 在混合服务端下，直接使用原生反射避免触发类型加载
-            if (MinecraftVersion.isHybridServer) {
+            if (MinecraftVersion.isCatServer) {
                 sendPacketMethod = getSendPacketMethodHybrid(connection, packet)
                 isFallbackMethod = true
             } else {
@@ -147,7 +147,7 @@ object PacketSender {
             "Failed to find sendPacket method. " +
                     "Connection type: ${connectionClass.name}, " +
                     "Packet type: ${packet.javaClass.name}, " +
-                    "Server: ${if (MinecraftVersion.isHybridServer) "Hybrid Server" else "Standard Server"}"
+                    "Server: ${if (MinecraftVersion.isCatServer) "Hybrid Server" else "Standard Server"}"
         )
     }
 
@@ -158,7 +158,7 @@ object PacketSender {
         return if (playerConnectionMap.containsKey(player.name)) {
             playerConnectionMap[player.name]!!
         } else {
-            val connection = if (!MinecraftVersion.isHybridServer) {
+            val connection = if (!MinecraftVersion.isCatServer) {
                 // 标准方式获取连接
                 if (MinecraftVersion.isUniversal) {
                     player.getProperty<Any>("entity/connection")!!
@@ -235,7 +235,7 @@ object PacketSender {
         // 还找不到就真没招了
         throw RuntimeException(
             "Failed to get player connection. " +
-                    "Server: ${if (MinecraftVersion.isHybridServer) "Hybrid Server" else "Standard Server"}, " +
+                    "Server: ${if (MinecraftVersion.isCatServer) "Hybrid Server" else "Standard Server"}, " +
                     "Version: ${MinecraftVersion.runningVersion}"
         )
     }

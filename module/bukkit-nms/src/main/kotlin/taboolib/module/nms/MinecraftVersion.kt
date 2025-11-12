@@ -63,10 +63,10 @@ object MinecraftVersion {
         get() = minecraftVersion == "UNKNOWN"
 
     /**
-     * 是否为混合服务端（如 CatServer、Mohist、Arclight、Magma 等）
+     * 是否为CatServer
      * 这些服务端使用自己的重混淆系统，可能与 Taboolib 的 NMS 重映射不兼容
      */
-    val isHybridServer by unsafeLazy {
+    val isCatServer by unsafeLazy {
         try {
             // 检测 CatServer
             Class.forName("catserver.server.CatServer")
