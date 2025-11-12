@@ -32,7 +32,12 @@ fun debug(vararg message: Any?) {
  * @param message 日志内容
  */
 fun info(vararg message: Any?) {
-    PlatformFactory.getService<PlatformIO>().info(*message)
+    val service = PlatformFactory.getServiceOrNull<PlatformIO>()
+    if (service != null) {
+        service.info(*message)
+    } else {
+        message.forEach { PrimitiveIO.println(it) }
+    }
 }
 
 /**
@@ -41,7 +46,12 @@ fun info(vararg message: Any?) {
  * @param message 日志内容
  */
 fun severe(vararg message: Any?) {
-    PlatformFactory.getService<PlatformIO>().severe(*message)
+    val service = PlatformFactory.getServiceOrNull<PlatformIO>()
+    if (service != null) {
+        service.severe(*message)
+    } else {
+        message.forEach { PrimitiveIO.warning(it) }
+    }
 }
 
 /**
@@ -50,7 +60,12 @@ fun severe(vararg message: Any?) {
  * @param message 日志内容
  */
 fun warning(vararg message: Any?) {
-    PlatformFactory.getService<PlatformIO>().warning(*message)
+    val service = PlatformFactory.getServiceOrNull<PlatformIO>()
+    if (service != null) {
+        service.warning(*message)
+    } else {
+        message.forEach { PrimitiveIO.warning(it) }
+    }
 }
 
 /**

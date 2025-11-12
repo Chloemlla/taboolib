@@ -7,6 +7,7 @@ class ContainerSQLite(file: File) : Container<SQLite>(HostSQLite(file)) {
 
     override fun createTableObject(type: AnalyzedClass, name: String): Table<*, *> {
         return Table(name, host) {
+            add { id() }
             type.members.forEach { member ->
                 when {
                     // 字符串

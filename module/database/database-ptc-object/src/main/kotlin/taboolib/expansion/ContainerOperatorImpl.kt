@@ -64,22 +64,22 @@ class ContainerOperatorImpl(override val table: Table<*, *>, override val dataSo
         }.map { typeClass.createInstance(typeClass.read(this)) }
     }
 
-    override fun update(data: Any, filter: Filter.() -> Unit) {
+    override fun update(data: Any, usePrimaryKey: Boolean, filter: Filter.() -> Unit) {
         val typeClass = AnalyzedClass.of(data::class.java)
         if (typeClass.members.none { !it.isFinal }) {
             error("No mutable field found.")
         }
-        val name = typeClass.primaryMemberName ?: error("No primary id found.")
-        val value = typeClass.getPrimaryMemberValue(data)
+        val name = if (usePrimaryKey) typeClass.primaryMemberName ?: error("No primary id found.") else null
+        val value = if (usePrimaryKey) typeClass.getPrimaryMemberValue(data) else null
         // 检查是否存在
         if (table.find(dataSource) {
                 limit(1)
-                where(name eq value.value())
+                if (name != null) where(name eq value?.value())
                 where(filter)
             }) {
             // 更新数据
             table.update(dataSource) {
-                where(name eq value.value())
+                if (name != null) where(name eq value?.value())
                 where(filter)
                 // 获取可变字段
                 typeClass.members.filter { !it.isFinal }.forEach { member ->
@@ -91,12 +91,12 @@ class ContainerOperatorImpl(override val table: Table<*, *>, override val dataSo
         }
     }
 
-    override fun updateByKey(data: Any) {
+    override fun updateByKey(data: Any, usePrimaryKey: Boolean, ) {
         val typeClass = AnalyzedClass.of(data::class.java)
         if (typeClass.members.none { !it.isFinal }) {
             error("No mutable field found.")
         }
-        update(data) {
+        update(data, usePrimaryKey) {
             typeClass.members.filter { it.isKey }.forEach { member ->
                 member.name eq typeClass.getValue(data, member).value()
             }

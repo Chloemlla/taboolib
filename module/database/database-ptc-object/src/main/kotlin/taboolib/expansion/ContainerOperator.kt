@@ -214,15 +214,17 @@ abstract class ContainerOperator {
      * 更新数据，借助 @Id 定位数据并更新
      *
      * @param data 数据类
+     * @param usePrimaryKey 是否使用 @Id 定位数据，如果不使用则必须定义 filter 条件
      */
-    abstract fun update(data: Any, filter: Filter.() -> Unit = {})
+    abstract fun update(data: Any, usePrimaryKey: Boolean = true, filter: Filter.() -> Unit = {})
 
     /**
      * 更新数据，借助 @Id 和 @Key 定位数据并更新
      *
      * @param data 数据类
+     * @param usePrimaryKey 是否使用 @Id 定位数据
      */
-    abstract fun updateByKey(data: Any)
+    abstract fun updateByKey(data: Any, usePrimaryKey: Boolean = true)
 
     /**
      * 插入数据
