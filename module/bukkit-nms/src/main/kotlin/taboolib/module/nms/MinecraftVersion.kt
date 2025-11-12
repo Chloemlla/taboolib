@@ -63,6 +63,20 @@ object MinecraftVersion {
         get() = minecraftVersion == "UNKNOWN"
 
     /**
+     * 是否为CatServer
+     * 这些服务端使用自己的重混淆系统，可能与 Taboolib 的 NMS 重映射不兼容
+     */
+    val isCatServer by unsafeLazy {
+        try {
+            // 检测 CatServer
+            Class.forName("catserver.server.CatServer")
+            return@unsafeLazy true
+        } catch (_: ClassNotFoundException) {
+        }
+        false
+    }
+
+    /**
      * 当前所有受支持的版本
      */
     val supportedVersion = arrayOf(
