@@ -15,6 +15,22 @@ import taboolib.common.util.unsafeLazy
 import taboolib.platform.BukkitPlugin
 import java.util.function.Supplier
 
+fun String.replacePlaceholder(): String {
+    return try {
+        PlaceholderAPI.setPlaceholders(null, this)
+    } catch (ex: NoClassDefFoundError) {
+        this
+    }
+}
+
+fun List<String>.replacePlaceholder(): List<String> {
+    return try {
+        PlaceholderAPI.setPlaceholders(null, this)
+    } catch (ex: NoClassDefFoundError) {
+        this
+    }
+}
+
 fun String.replacePlaceholder(player: Player): String {
     return try {
         PlaceholderAPI.setPlaceholders(player, this)
