@@ -47,7 +47,6 @@ import static taboolib.common.PrimitiveIO.t;
  * @since 2024/7/20 20:31
  */
 @SuppressWarnings("deprecation")
-
 public class AetherResolver {
 
     private static final Map<String, AetherResolver> resolverMap = Maps.newConcurrentMap();
@@ -95,13 +94,18 @@ public class AetherResolver {
 
             @Override
             public boolean accept(DependencyNode node, List<DependencyNode> parents) {
-                // 忽略可选
-                if (ignoreOptional && node.getDependency().isOptional()) return false;
-                // 依赖传递
-                if (isTransitive) return true;
+                // 选定的主依赖必被加载
                 if (self) {
                     self = false;
                     return true;
+                }
+                // 子依赖传递
+                if (!isTransitive) return false;
+                // 忽略可选依赖
+                if (ignoreOptional && node.getDependency().isOptional()) return false;
+                // 依赖作用域过滤
+                for (DependencyScope s : scope) {
+                    if (s.name().equalsIgnoreCase(node.getDependency().getScope())) return true;
                 }
                 return false;
             }
@@ -113,9 +117,11 @@ public class AetherResolver {
     }
 
     public static @Nullable ClassLoader inject(@NotNull File file, @Nullable List<JarRelocation> relocation, boolean isExternal) throws Throwable {
-        // 避免重复加载多个依赖
-        if (injectedDependencies.contains(file.getPath())) return null;
-        else injectedDependencies.add(file.getParent());
+        // 文件路径: group/name/version/file
+        // 两次获取父文件跳到 name 层, 避免重复加载同一个依赖 (的不同版本)
+        String path = file.getParentFile().getParentFile().getPath();
+        if (injectedDependencies.contains(path)) return null;
+        else injectedDependencies.add(path);
         // 如果没有重定向规则，直接注入
         if (relocation == null || relocation.isEmpty()) {
             return ClassAppender.addPath(file.toPath(), PrimitiveSettings.IS_ISOLATED_MODE, isExternal);
