@@ -2,20 +2,23 @@ package taboolib.common.platform.function
 
 import taboolib.common.platform.PlatformFactory
 import taboolib.common.platform.service.PlatformExecutor
+import taboolib.common.util.unsafeLazy
+
+val executorService by unsafeLazy { PlatformFactory.getService<PlatformExecutor>() }
 
 /**
  * 释放在预备阶段的调度器计划
  * 这个方法只能执行一次且必须执行
  */
 fun startExecutor() {
-    PlatformFactory.getService<PlatformExecutor>().start()
+    executorService.start()
 }
 
 /**
  * 执行一个任务
  */
 fun runTask(executor: Runnable): PlatformExecutor.PlatformTask {
-    return PlatformFactory.getService<PlatformExecutor>().submit(PlatformExecutor.PlatformRunnable(now = false, async = false, delay = 0, period = 0) { executor.run() })
+    return executorService.submit(PlatformExecutor.PlatformRunnable(now = false, async = false, delay = 0, period = 0) { executor.run() })
 }
 
 /**
@@ -35,7 +38,7 @@ fun submit(
     period: Long = 0,
     executor: PlatformExecutor.PlatformTask.() -> Unit,
 ): PlatformExecutor.PlatformTask {
-    return PlatformFactory.getService<PlatformExecutor>().submit(PlatformExecutor.PlatformRunnable(now, async, delay, period, executor))
+    return executorService.submit(PlatformExecutor.PlatformRunnable(now, async, delay, period, executor))
 }
 
 /**
@@ -53,5 +56,5 @@ fun submitAsync(
     period: Long = 0,
     executor: PlatformExecutor.PlatformTask.() -> Unit,
 ): PlatformExecutor.PlatformTask {
-    return PlatformFactory.getService<PlatformExecutor>().submit(PlatformExecutor.PlatformRunnable(now, true, delay, period, executor))
+    return executorService.submit(PlatformExecutor.PlatformRunnable(now, true, delay, period, executor))
 }

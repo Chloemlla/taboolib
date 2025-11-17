@@ -9,6 +9,7 @@ import taboolib.common.platform.PlatformSide
 import taboolib.common.platform.function.pluginId
 import taboolib.common.platform.service.PlatformOpenContainer
 import taboolib.platform.type.AfyBrokerContainer
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * TabooLib
@@ -22,13 +23,26 @@ import taboolib.platform.type.AfyBrokerContainer
 @PlatformSide(Platform.AFYBROKER)
 class AfyBrokerOpenContainer : PlatformOpenContainer {
 
-    val pluginContainer = HashMap<String, OpenContainer>()
+    val pluginContainer = ConcurrentHashMap<String, OpenContainer>()
 
     override fun getOpenContainers(): List<OpenContainer> {
         return Broker.getPluginManager().plugins.filter { it.javaClass.name.endsWith("platform.AfyBrokerPlugin") && it.description.name != pluginId }.mapNotNull {
-            pluginContainer.getOrPut(it.description.name) { AfyBrokerContainer(it) }
+            pluginContainer.computeIfAbsent(it.description.name) { _ -> AfyBrokerContainer(it) }
         }.filter {
             it.isValid
         }
+    }
+
+    override fun getOpenContainers(name: String): OpenContainer? {
+        if (pluginContainer.containsKey(name)) {
+            return pluginContainer[name]
+        }
+        val plugin = Broker.getPluginManager().getPlugin(name)
+        if (plugin != null && plugin.javaClass.name.endsWith("platform.AfyBrokerPlugin")) {
+            val container = AfyBrokerContainer(plugin)
+            pluginContainer[name] = container
+            return container
+        }
+        return null
     }
 }

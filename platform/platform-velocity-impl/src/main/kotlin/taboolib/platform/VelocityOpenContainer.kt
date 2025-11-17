@@ -9,6 +9,7 @@ import taboolib.common.platform.function.pluginId
 import taboolib.common.platform.service.PlatformOpenContainer
 import taboolib.common.util.orNull
 import taboolib.platform.type.VelocityContainer
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * TabooLib
@@ -22,15 +23,28 @@ import taboolib.platform.type.VelocityContainer
 @PlatformSide(Platform.VELOCITY)
 class VelocityOpenContainer : PlatformOpenContainer {
 
-    val pluginContainer = HashMap<String, OpenContainer>()
+    val pluginContainer = ConcurrentHashMap<String, OpenContainer>()
 
     override fun getOpenContainers(): List<OpenContainer> {
         return VelocityPlugin.getInstance().server.pluginManager.plugins
             .filter { it.instance.orElse(null)?.javaClass?.name?.endsWith("platform.VelocityPlugin") == true && it.description.name.orNull() != pluginId }
             .mapNotNull {
-                pluginContainer.getOrPut(it.description.id) { VelocityContainer(it) }
+                pluginContainer.computeIfAbsent(it.description.id) { _ -> VelocityContainer(it) }
             }.filter {
                 it.isValid
             }
+    }
+
+    override fun getOpenContainers(name: String): OpenContainer? {
+        if (pluginContainer.containsKey(name)) {
+            return pluginContainer[name]
+        }
+        val plugin = VelocityPlugin.getInstance().server.pluginManager.getPlugin(name).orNull()
+        if (plugin != null && plugin.javaClass.name.endsWith("platform.VelocityPlugin")) {
+            val container = VelocityContainer(plugin)
+            pluginContainer[name] = container
+            return container
+        }
+        return null
     }
 }

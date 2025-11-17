@@ -9,6 +9,7 @@ import taboolib.common.platform.PlatformSide
 import taboolib.common.platform.function.pluginId
 import taboolib.common.platform.service.PlatformOpenContainer
 import taboolib.platform.type.BungeeContainer
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * TabooLib
@@ -22,13 +23,26 @@ import taboolib.platform.type.BungeeContainer
 @PlatformSide(Platform.BUNGEE)
 class BungeeOpenContainer : PlatformOpenContainer {
 
-    val pluginContainer = HashMap<String, OpenContainer>()
+    val pluginContainer = ConcurrentHashMap<String, OpenContainer>()
 
     override fun getOpenContainers(): List<OpenContainer> {
         return BungeeCord.getInstance().pluginManager.plugins.filter { it.javaClass.name.endsWith("platform.BungeePlugin") && it.description.name != pluginId }.mapNotNull {
-            pluginContainer.getOrPut(it.description.name) { BungeeContainer(it) }
+            pluginContainer.computeIfAbsent(it.description.name) { _ -> BungeeContainer(it) }
         }.filter {
             it.isValid
         }
+    }
+
+    override fun getOpenContainers(name: String): OpenContainer? {
+        if (pluginContainer.containsKey(name)) {
+            return pluginContainer[name]
+        }
+        val plugin = BungeeCord.getInstance().pluginManager.getPlugin(name)
+        if (plugin != null && plugin.javaClass.name.endsWith("platform.BungeePlugin")) {
+            val container = BungeeContainer(plugin)
+            pluginContainer[name] = container
+            return container
+        }
+        return null
     }
 }
