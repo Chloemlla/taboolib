@@ -1,11 +1,15 @@
 package taboolib.module.kether
 
+import org.tabooproject.reflex.ClassMethod
 import org.tabooproject.reflex.Reflex.Companion.getProperty
 import org.tabooproject.reflex.Reflex.Companion.invokeMethod
+import org.tabooproject.reflex.ReflexClass
 import taboolib.common.OpenContainer
+import taboolib.common.util.supplierLazy
 import taboolib.library.kether.ParsedAction
 import taboolib.library.kether.QuestReader
 
+@Suppress("UNCHECKED_CAST")
 class RemoteQuestReader(val remote: OpenContainer, val source: Any) : QuestReader {
 
     override fun peek(): Char {
@@ -13,7 +17,7 @@ class RemoteQuestReader(val remote: OpenContainer, val source: Any) : QuestReade
     }
 
     override fun peek(n: Int): Char {
-        return source.invokeMethod("peek", n, remap = false)!!
+        return peekIntMethod[source].invoke(source, n) as Char
     }
 
     override fun getIndex(): Int {
@@ -43,20 +47,35 @@ class RemoteQuestReader(val remote: OpenContainer, val source: Any) : QuestReade
     override fun <T> nextAction(): ParsedAction<T> {
         val action = source.invokeMethod<T>("nextAction", remap = false)!!
         val questAction = RemoteQuestAction<T>(remote, action.getProperty<Any>("action", remap = false)!!)
-        return ParsedAction(questAction, action.getProperty<Map<String, Any>>("properties")!!)
+        return ParsedAction(questAction, action.getProperty<Map<String, Any>>("properties", remap = false)!!)
     }
 
     override fun <T : Any?> nextAction(namespace: String?): ParsedAction<T> {
         return try {
-            val action = source.invokeMethod<T>("nextAction", namespace, remap = false)!!
+            val action = nextActionStringMethod[source].invoke(source, namespace)!!
             val questAction = RemoteQuestAction<T>(remote, action.getProperty<Any>("action", remap = false)!!)
-            ParsedAction(questAction, action.getProperty<Map<String, Any>>("properties")!!)
+            ParsedAction(questAction, action.getProperty<Map<String, Any>>("properties", remap = false)!!)
         } catch (_: NoSuchMethodException) {
             nextAction()
         }
     }
 
     override fun expect(value: String) {
-        source.invokeMethod<Void>("expect", value, remap = false)
+        expectMethod[source].invoke(source, value)
+    }
+
+    companion object {
+
+        val peekIntMethod = supplierLazy<Any, ClassMethod>(typeIsolation = true) {
+            ReflexClass.of(it.javaClass).getMethodByTypes("peek", remap = false, parameter = arrayOf(Int::class.java))
+        }
+
+        val nextActionStringMethod = supplierLazy<Any, ClassMethod>(typeIsolation = true) {
+            ReflexClass.of(it.javaClass).getMethodByTypes("nextAction", remap = false, parameter = arrayOf(String::class.java))
+        }
+
+        val expectMethod = supplierLazy<Any, ClassMethod>(typeIsolation = true) {
+            ReflexClass.of(it.javaClass).getMethodByTypes("expect", remap = false, parameter = arrayOf(String::class.java))
+        }
     }
 }
