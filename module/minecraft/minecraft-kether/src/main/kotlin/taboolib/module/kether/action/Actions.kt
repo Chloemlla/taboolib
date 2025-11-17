@@ -192,4 +192,23 @@ internal object Actions {
             process(0)
         }
     }
+
+    @KetherParser(["seq"], shared = true)
+    fun action1() = scriptParser {
+        val actions = it.next(ArgTypes.listOf(ArgTypes.ACTION))
+        actionFuture { f ->
+            var last: Any? = null
+            fun process(cur: Int) {
+                if (cur < actions.size) {
+                    run(actions[cur]).thenAccept { result ->
+                        last = result
+                        process(cur + 1)
+                    }
+                } else {
+                    f.complete(last)
+                }
+            }
+            process(0)
+        }
+    }
 }
