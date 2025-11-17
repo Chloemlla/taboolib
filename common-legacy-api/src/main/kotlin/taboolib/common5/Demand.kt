@@ -39,7 +39,9 @@ package taboolib.common5
  * @since 2020/11/22 2:51 下午
  */
 @Suppress("ReplaceSubstringWithDropLast", "ReplaceSubstringWithTake")
-class Demand(val source: String) {
+class Demand(source: String) {
+
+    val source = source.trim()
 
     lateinit var namespace: String
 
@@ -112,6 +114,9 @@ class Demand(val source: String) {
         setKey: (String) -> Unit,
         setState: (ParseState) -> Unit
     ) {
+        if (arg.isEmpty()) {
+            return
+        }
         val ch = arg[0]
         when {
             // 处理标签

@@ -226,6 +226,12 @@ class DemandTest {
         // 性能断言：平均每次解析应该少于1ms（可以根据实际情况调整）
         assertTrue(avgTime < 1.0, "平均解析时间过长: ${avgTime}ms")
     }
+
+    @Test
+    fun testSpace() {
+        Demand("   command arg1 arg2     ")
+        Demand("   command arg1 arg2 -key1 value1 -key2 \"value with spaces\" --tag1 --tag2    ")
+    }
 }
 
 /**
