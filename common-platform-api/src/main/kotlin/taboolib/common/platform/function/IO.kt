@@ -6,7 +6,11 @@ import taboolib.common.io.newFile
 import taboolib.common.io.runningResources
 import taboolib.common.platform.PlatformFactory
 import taboolib.common.platform.service.PlatformIO
+import taboolib.common.util.unsafeLazy
 import java.io.File
+
+val ioService by unsafeLazy { PlatformFactory.getService<PlatformIO>() }
+val ioServiceOrNull by unsafeLazy { PlatformFactory.getServiceOrNull<PlatformIO>() }
 
 /**
  * 获取控制台对象
@@ -14,7 +18,7 @@ import java.io.File
  * server<ConsoleCommandSender>()
  */
 fun <T> server(): T {
-    return PlatformFactory.getService<PlatformIO>().server()
+    return ioService.server()
 }
 
 /**
@@ -32,7 +36,7 @@ fun debug(vararg message: Any?) {
  * @param message 日志内容
  */
 fun info(vararg message: Any?) {
-    val service = PlatformFactory.getServiceOrNull<PlatformIO>()
+    val service = ioServiceOrNull
     if (service != null) {
         service.info(*message)
     } else {
@@ -46,7 +50,7 @@ fun info(vararg message: Any?) {
  * @param message 日志内容
  */
 fun severe(vararg message: Any?) {
-    val service = PlatformFactory.getServiceOrNull<PlatformIO>()
+    val service = ioServiceOrNull
     if (service != null) {
         service.severe(*message)
     } else {
@@ -60,7 +64,7 @@ fun severe(vararg message: Any?) {
  * @param message 日志内容
  */
 fun warning(vararg message: Any?) {
-    val service = PlatformFactory.getServiceOrNull<PlatformIO>()
+    val service = ioServiceOrNull
     if (service != null) {
         service.warning(*message)
     } else {
@@ -76,7 +80,7 @@ fun warning(vararg message: Any?) {
  * @param target 资源文件目标路径
  */
 fun releaseResourceFile(source: String, replace: Boolean = false, target: String = source): File {
-    return PlatformFactory.getService<PlatformIO>().releaseResourceFile(source, target, replace)
+    return ioService.releaseResourceFile(source, target, replace)
 }
 
 /**
@@ -101,7 +105,7 @@ fun releaseResourceFolder(prefix: String, replace: Boolean = false) {
  * 获取当前插件的 Jar 文件对象
  */
 fun getJarFile(): File {
-    return PlatformFactory.getService<PlatformIO>().getJarFile()
+    return ioService.getJarFile()
 }
 
 /**
@@ -109,7 +113,7 @@ fun getJarFile(): File {
  * 可能不存在，需要手动调用 mkdirs 方法创建
  */
 fun getDataFolder(): File {
-    return PlatformFactory.getService<PlatformIO>().getDataFolder()
+    return ioService.getDataFolder()
 }
 
 /**
@@ -117,5 +121,5 @@ fun getDataFolder(): File {
  * 用于 BStats 统计，无实际用途
  */
 fun getPlatformData(): Map<String, Any> {
-    return PlatformFactory.getService<PlatformIO>().getPlatformData()
+    return ioService.getPlatformData()
 }

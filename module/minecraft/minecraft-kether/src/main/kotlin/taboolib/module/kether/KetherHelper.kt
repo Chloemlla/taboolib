@@ -117,6 +117,7 @@ fun Throwable.printKetherErrorMessage(detailError: Boolean = false) {
             """.t()
         )
     }
+    warning("$javaClass:")
     localizedMessage.split('\n').forEach { warning(it) }
 }
 

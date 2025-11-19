@@ -5,34 +5,37 @@ import taboolib.common.platform.ProxyCommandSender
 import taboolib.common.platform.ProxyPlayer
 import taboolib.common.platform.service.PlatformAdapter
 import taboolib.common.util.Location
+import taboolib.common.util.unsafeLazy
 import java.util.*
+
+val adapterService by unsafeLazy { PlatformFactory.getService<PlatformAdapter>() }
 
 /**
  * 获取控制台
  */
 fun console(): ProxyCommandSender {
-    return PlatformFactory.getService<PlatformAdapter>().console()
+    return adapterService.console()
 }
 
 /**
  * 将平台实现转换为跨平台实现
  */
 fun adaptCommandSender(any: Any): ProxyCommandSender {
-    return PlatformFactory.getService<PlatformAdapter>().adaptCommandSender(any)
+    return adapterService.adaptCommandSender(any)
 }
 
 /**
  * 获取所有在线玩家
  */
 fun onlinePlayers(): List<ProxyPlayer> {
-    return PlatformFactory.getService<PlatformAdapter>().onlinePlayers()
+    return adapterService.onlinePlayers()
 }
 
 /**
  * 将平台实现转换为跨平台实现
  */
 fun adaptPlayer(any: Any): ProxyPlayer {
-    return PlatformFactory.getService<PlatformAdapter>().adaptPlayer(any)
+    return adapterService.adaptPlayer(any)
 }
 
 /**
@@ -53,7 +56,7 @@ fun getProxyPlayer(uuid: UUID): ProxyPlayer? {
  * 将平台实现转换为跨平台实现
  */
 fun adaptLocation(any: Any): Location {
-    return PlatformFactory.getService<PlatformAdapter>().adaptLocation(any)
+    return adapterService.adaptLocation(any)
 }
 
 /**
@@ -61,12 +64,12 @@ fun adaptLocation(any: Any): Location {
  */
 @Suppress("UNCHECKED_CAST")
 fun <T> platformLocation(location: Location): T {
-    return PlatformFactory.getService<PlatformAdapter>().platformLocation(location) as T
+    return adapterService.platformLocation(location) as T
 }
 
 /**
  * 获取所有世界
  */
 fun allWorlds(): List<String> {
-    return PlatformFactory.getService<PlatformAdapter>().allWorlds()
+    return adapterService.allWorlds()
 }

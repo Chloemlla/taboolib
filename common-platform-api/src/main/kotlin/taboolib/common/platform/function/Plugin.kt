@@ -1,22 +1,19 @@
 package taboolib.common.platform.function
 
-import taboolib.common.platform.PlatformFactory
-import taboolib.common.platform.service.PlatformIO
+import taboolib.common.util.unsafeLazy
 
 /**
  * 获取当前插件名称
  */
-inline val pluginId: String
-    get() = PlatformFactory.getService<PlatformIO>().pluginId
+val pluginId by unsafeLazy { ioService.pluginId }
 
 /**
  * 获取当前插件版本
  */
-inline val pluginVersion: String
-    get() = PlatformFactory.getService<PlatformIO>().pluginVersion
+val pluginVersion by unsafeLazy { ioService.pluginVersion }
 
 /**
  * 当前是否在主线程中运行
  */
 inline val isPrimaryThread: Boolean
-    get() = PlatformFactory.getService<PlatformIO>().isPrimaryThread
+    get() = ioService.isPrimaryThread

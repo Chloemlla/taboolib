@@ -6,6 +6,9 @@ import taboolib.common.platform.command.CommandExecutor
 import taboolib.common.platform.command.CommandStructure
 import taboolib.common.platform.command.component.CommandBase
 import taboolib.common.platform.service.PlatformCommand
+import taboolib.common.util.unsafeLazy
+
+val commandService by unsafeLazy { PlatformFactory.getService<PlatformCommand>() }
 
 /**
  *  注册一个命令
@@ -16,7 +19,7 @@ import taboolib.common.platform.service.PlatformCommand
  *  @param commandBuilder 命令构建器
  */
 fun registerCommand(command: CommandStructure, executor: CommandExecutor, completer: CommandCompleter, commandBuilder: CommandBase.() -> Unit) {
-    PlatformFactory.getService<PlatformCommand>().registerCommand(command, executor, completer, commandBuilder)
+    commandService.registerCommand(command, executor, completer, commandBuilder)
 }
 
 /**
@@ -35,12 +38,12 @@ fun unregisterCommand(command: CommandStructure) {
  * @param command 命令名称
  */
 fun unregisterCommand(command: String) {
-    PlatformFactory.getService<PlatformCommand>().unregisterCommand(command)
+    commandService.unregisterCommand(command)
 }
 
 /**
  * 注销所有命令
  */
 fun unregisterCommands() {
-    PlatformFactory.getService<PlatformCommand>().unregisterCommands()
+    commandService.unregisterCommands()
 }

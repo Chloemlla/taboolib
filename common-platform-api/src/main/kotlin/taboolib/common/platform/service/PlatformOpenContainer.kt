@@ -9,4 +9,6 @@ import taboolib.common.platform.PlatformService
 interface PlatformOpenContainer {
 
     fun getOpenContainers(): List<OpenContainer>
+
+    fun getOpenContainers(name: String): OpenContainer?
 }
