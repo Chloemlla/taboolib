@@ -3,8 +3,8 @@ package taboolib.module.nms
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.commons.ClassRemapper
-import taboolib.common.TabooLib
 import taboolib.common.BinaryCache
+import taboolib.common.TabooLib
 import taboolib.common.io.digest
 import taboolib.common.io.taboolibPath
 import taboolib.common.platform.function.debug
@@ -62,7 +62,7 @@ class AsmClassTranslation(val source: String) {
         }
         // 转译
         val (newClass, cost2) = execution {
-            val classReader = ClassRemader(bytes)
+            val classReader = ClassReader(bytes)
             val classWriter = ClassWriter(ClassWriter.COMPUTE_MAXS)
             // 若当前运行环境为 Paper 时使用新版转换器
             val remapper = if (MinecraftVersion.isUniversalCraftBukkit) {

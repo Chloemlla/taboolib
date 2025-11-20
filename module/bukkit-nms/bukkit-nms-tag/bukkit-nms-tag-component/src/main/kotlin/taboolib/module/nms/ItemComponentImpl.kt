@@ -1,20 +1,29 @@
 package taboolib.module.nms
 
 import com.mojang.authlib.properties.PropertyMap
+import net.minecraft.core.ClientAsset
 import net.minecraft.core.Holder
 import net.minecraft.core.component.DataComponentType
 import net.minecraft.network.chat.IChatBaseComponent
 import net.minecraft.resources.MinecraftKey
+import net.minecraft.resources.ResourceKey
 import net.minecraft.sounds.SoundEffect
 import net.minecraft.world.ChestLock
 import net.minecraft.world.effect.MobEffect
 import net.minecraft.world.effect.MobEffectList
-import net.minecraft.world.entity.animal.EntityTropicalFish
+import net.minecraft.world.entity.animal.*
+import net.minecraft.world.entity.animal.axolotl.Axolotl
+import net.minecraft.world.entity.animal.frog.FrogVariant
+import net.minecraft.world.entity.animal.horse.EntityLlama
+import net.minecraft.world.entity.animal.horse.HorseColor
+import net.minecraft.world.entity.animal.wolf.WolfSoundVariant
+import net.minecraft.world.entity.animal.wolf.WolfVariant
+import net.minecraft.world.entity.decoration.PaintingVariant
+import net.minecraft.world.entity.npc.VillagerType
+import net.minecraft.world.entity.variant.ModelAndTexture
+import net.minecraft.world.entity.variant.SpawnPrioritySelectors
 import net.minecraft.world.food.FoodInfo
-import net.minecraft.world.item.AdventureModePredicate
-import net.minecraft.world.item.EnumColor
-import net.minecraft.world.item.EnumItemRarity
-import net.minecraft.world.item.JukeboxPlayable
+import net.minecraft.world.item.*
 import net.minecraft.world.item.alchemy.PotionContents
 import net.minecraft.world.item.alchemy.PotionRegistry
 import net.minecraft.world.item.component.*
@@ -72,7 +81,6 @@ class ItemComponentImpl : ItemComponent {
             is DyedItemColor -> getDyedItemColor(nbtTag)
             is MapItemColor -> getMapItemColor(nbtTag)
             is MapDecorations -> getMapDecorations(nbtTag)
-//            TODO("paper又干坏事,把SoundEffect改成了SoundEvent")
             is Holder<*> -> parseHolder(nbtTag)
             is MapPostProcessing -> getMapPostProcessing(nbtTag)
             is ChargedProjectiles -> getChargedProjectiles(nbtTag)
@@ -101,21 +109,82 @@ class ItemComponentImpl : ItemComponent {
             is ChestLock -> getChestLock(nbtTag)
             is SeededContainerLoot -> getSeededContainerLoot(nbtTag)
             is EntityTropicalFish.Variant -> getEntityTropicalFishVariant(nbtTag)
+            is ResourceKey<*> -> {
+                val location = "location" to getMinecraftKey(nbtTag.location())
+                val registry = "registry" to getMinecraftKey(nbtTag.registry())
+                itemTag(location, registry)
+            }
+
+            is EntityFox.Type -> getEntityFoxType(nbtTag)
+            is EntitySalmon.Variant -> getEntitySalmonVariant(nbtTag)
+            is EntityParrot.Variant -> getEntityParrotVariant(nbtTag)
+            is EntityMushroomCow.Type -> getEntityMushroomCowType(nbtTag)
+            is EntityRabbit.Variant -> getEntityRabbitVariant(nbtTag)
+            is EitherHolder<*> -> TODO("EitherHolder<ChickenVariant> 暂未实现")
+            is HorseColor -> getHorseColor(nbtTag)
+            is EntityLlama.Variant -> getEntityLlamaVariant(nbtTag)
+            is Axolotl.Variant -> getAxolotlVariant(nbtTag)
 
             else -> null
         }
+    }
+
+    fun getAxolotlVariant(value: Axolotl.Variant): ItemTagData {
+        val name = "name" to value.name
+        val id = "id" to value.id
+        return itemTag(name, id)
+    }
+
+    fun getHorseColor(value: HorseColor): ItemTagData {
+        val name = "name" to value.name
+        val id = "id" to value.id
+        return itemTag(name, id)
+    }
+
+    fun getEntityRabbitVariant(value: EntityRabbit.Variant): ItemTagData {
+        val name = "name" to value.name
+        val id = "id" to value.id()
+        return itemTag(name, id)
+    }
+
+    fun getEntityMushroomCowType(value: EntityMushroomCow.Type): ItemTagData {
+        val name = "name" to value.name
+        return itemTag(name)
+    }
+
+    fun getEntitySalmonVariant(value: EntitySalmon.Variant): ItemTagData {
+        val name = "name" to value.name
+        return itemTag(name)
+    }
+
+    fun getEntityFoxType(value: EntityFox.Type): ItemTagData {
+        val name = "name" to value.name
+        val id = "id" to value.id
+        return itemTag(name, id)
+    }
+
+    fun getEntityParrotVariant(value: EntityParrot.Variant): ItemTagData {
+        val name = "name" to value.name
+        val id = "id" to value.id
+        return itemTag(name, id)
+    }
+
+    fun getEntityLlamaVariant(value: EntityLlama.Variant): ItemTagData {
+        val name = "name" to value.name
+        val id = "id" to value.id
+        return itemTag(name, id)
     }
 
     fun getSuspiciousStewEffects(value: SuspiciousStewEffects): ItemTagData {
         return ItemTagList(value.effects.map {
             val effect = "effect" to parseHolder(it.effect)
             val duration = "duration" to it.duration
-             itemTag(effect, duration)
+            itemTag(effect, duration)
         })
     }
 
     fun getWritableBookContent(value: WritableBookContent): ItemTagData {
-       return ItemTagList(value.pages.map {
+        return ItemTagList(value.pages.map {
             val raw = "raw" to it.raw
             val filtered = "filtered" to it.filtered.get()
             itemTag(raw, filtered)
@@ -134,6 +203,7 @@ class ItemComponentImpl : ItemComponent {
         })
         return itemTag(author, generation, resolved, title, pages)
     }
+
     fun getArmorTrim(value: ArmorTrim): ItemTagData {
         val pattern = value.pattern.value().let {
             val decal = "decal" to it.decal
@@ -564,8 +634,76 @@ class ItemComponentImpl : ItemComponent {
             is SoundEffect -> getSoundEffect(value)
             is MobEffectList -> getMobEffectList(value)
             is PotionRegistry -> getPotionRegistry(value)
+            is VillagerType -> getVillagerType(value)
+            is WolfVariant -> getWolfVariant(value)
+            is WolfSoundVariant -> getWolfSoundVariant(value)
+            is PigVariant -> getPigVariant(value)
+            is CowVariant -> getCowVariant(value)
+            is CatVariant -> getCatVariant(value)
+            is PaintingVariant -> getPaintingVariant(value)
+            is FrogVariant -> getFrogVariant(value)
+
             else -> error("Unsupported holder type: ${value.javaClass}")
         }
+    }
+
+
+    fun getWolfSoundVariant(value: WolfSoundVariant): ItemTagData {
+        val hurtSound = "hurtSound" to parseHolder(value.hurtSound)
+        val deathSound = "deathSound" to parseHolder(value.deathSound)
+        val pantSound = "pantSound" to parseHolder(value.pantSound)
+        val growlSound = "growlSound" to parseHolder(value.growlSound)
+        val whineSound = "whineSound" to parseHolder(value.whineSound)
+        val ambientSound = "ambientSound" to parseHolder(value.ambientSound)
+        return itemTag(hurtSound, deathSound, pantSound, growlSound, whineSound, ambientSound)
+    }
+
+    fun getPaintingVariant(value: PaintingVariant): ItemTagData {
+        val author = "author" to getIChatBaseComponent(value.author.get())
+        val title = "title" to getIChatBaseComponent(value.title.get())
+        val assetId = "assetId" to getMinecraftKey(value.assetId)
+        val height = "height" to value.height
+        val width = "width" to value.width
+        val area = "area" to value.area()
+        return itemTag(author, title, assetId, height, width, area)
+    }
+
+    fun getCatVariant(value: CatVariant): ItemTagData {
+        val assetInfo = "assetInfo" to parseClientAsset(value.assetInfo)
+        val spawnConditions = "spawnConditions" to parseSpawnPrioritySelectors(value.spawnConditions)
+        return itemTag(assetInfo, spawnConditions)
+    }
+
+    fun getCowVariant(value: CowVariant): ItemTagData {
+        val spawnConditions = "spawnConditions" to parseSpawnPrioritySelectors(value.spawnConditions)
+        val modelAndTexture = "modelAndTexture" to parseModel(value.modelAndTexture)
+        return itemTag(spawnConditions, modelAndTexture)
+    }
+
+    fun getPigVariant(value: PigVariant): ItemTagData {
+        val spawnConditions = "spawnConditions" to parseSpawnPrioritySelectors(value.spawnConditions)
+        val modelAndTexture = "modelAndTexture" to parseModel(value.modelAndTexture)
+        return itemTag(spawnConditions, modelAndTexture)
+    }
+
+    fun getWolfVariant(value: WolfVariant): ItemTagData {
+        val info = value.assetInfo
+        val tame = "tame" to parseClientAsset(info.tame)
+        val wild = "wild" to parseClientAsset(info.wild)
+        val angry = "angry" to parseClientAsset(info.angry)
+        val assetInfo = "assetInfo" to itemTag(tame, wild, angry)
+        val spawnConditions = "spawnConditions" to parseSpawnPrioritySelectors(value.spawnConditions)
+        return itemTag(assetInfo, spawnConditions)
+    }
+
+    fun getVillagerType(value: VillagerType): ItemTagData {
+        TODO("VillagerType 没有可用的内容)")
+    }
+
+    fun getFrogVariant(value: FrogVariant): ItemTagData {
+        val assetInfo = "assetInfo" to parseClientAsset(value.assetInfo)
+        val spawnConditions = "spawnConditions" to parseSpawnPrioritySelectors(value.spawnConditions)
+        return itemTag(assetInfo, spawnConditions)
     }
 
     fun getPotionRegistry(value: PotionRegistry): ItemTagData {
@@ -624,6 +762,36 @@ class ItemComponentImpl : ItemComponent {
         val location = "location" to loca.toString()
         val fixed = "fixedRange" to range
         return itemTag(location, fixed)
+    }
+
+    private fun parseModel(value: ModelAndTexture<*>): ItemTagData {
+        val model = "name" to when (val model = value.model) {
+            is PigVariant.a -> {
+                model.name
+            }
+
+            is CowVariant.a -> {
+                model.name
+            }
+
+            else -> "null"
+        }
+        val asset = "asset" to parseClientAsset(value.asset)
+        return itemTag(model, asset)
+    }
+
+    private fun parseClientAsset(value: ClientAsset): ItemTagData {
+        val id = "id" to getMinecraftKey(value.id)
+        val texturePath = "texturePath" to getMinecraftKey(value.texturePath)
+        return itemTag(id, texturePath)
+    }
+
+    private fun parseSpawnPrioritySelectors(value: SpawnPrioritySelectors): ItemTagData {
+        val selectors = "selectors" to ItemTagList(value.selectors.map {
+            val priority = "priority" to it.priority
+            itemTag(priority)
+        })
+        return itemTag(selectors)
     }
 
     private fun itemTag(vararg pairs: Pair<String, Any>): ItemTagData {
