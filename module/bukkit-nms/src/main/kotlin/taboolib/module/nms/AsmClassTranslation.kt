@@ -62,7 +62,7 @@ class AsmClassTranslation(val source: String) {
         }
         // 转译
         val (newClass, cost2) = execution {
-            val classReader = ClassReader(bytes)
+            val classReader = ClassRemader(bytes)
             val classWriter = ClassWriter(ClassWriter.COMPUTE_MAXS)
             // 若当前运行环境为 Paper 时使用新版转换器
             val remapper = if (MinecraftVersion.isUniversalCraftBukkit) {
