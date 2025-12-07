@@ -68,6 +68,10 @@ class RequiresTest {
     @Requires(systemProperty = ["server.type=lobby"])
     class RequiresLobbyServer
 
+    // 系统属性不等于条件
+    @Requires(systemProperty = ["server.type!=lobby"])
+    class RequiresNotLobbyServer
+
     // 仅检查系统属性存在
     @Requires(systemProperty = ["debug.mode"])
     class RequiresDebugMode
@@ -78,6 +82,10 @@ class RequiresTest {
 
     @Requires(env = ["NONEXISTENT_VAR_12345"])
     class RequiresNonExistentEnv
+
+    // 环境变量不等于条件（PATH 存在且不等于 nonexistent）
+    @Requires(env = ["PATH!=nonexistent"])
+    class RequiresPathNotEquals
 
     // 组合条件（AND）
     @Requires(classes = ["java.lang.String"], systemProperty = ["test.enabled=true"])
@@ -142,6 +150,27 @@ class RequiresTest {
     }
 
     @Test
+    @DisplayName("@Requires(systemProperty): 不等于 - 值不同时通过")
+    fun testRequiresSystemProperty_notEquals_different() {
+        setSystemProperty("server.type", "main")
+        assertTrue(ClassVisitorHandler.checkRequires(reflexOf(RequiresNotLobbyServer::class.java)))
+    }
+
+    @Test
+    @DisplayName("@Requires(systemProperty): 不等于 - 值相同时不通过")
+    fun testRequiresSystemProperty_notEquals_same() {
+        setSystemProperty("server.type", "lobby")
+        assertFalse(ClassVisitorHandler.checkRequires(reflexOf(RequiresNotLobbyServer::class.java)))
+    }
+
+    @Test
+    @DisplayName("@Requires(systemProperty): 不等于 - 属性不存在时通过")
+    fun testRequiresSystemProperty_notEquals_notExists() {
+        // server.type 不存在，视为不等于 lobby
+        assertTrue(ClassVisitorHandler.checkRequires(reflexOf(RequiresNotLobbyServer::class.java)))
+    }
+
+    @Test
     @DisplayName("@Requires(systemProperty): 仅检查存在 - 存在时通过")
     fun testRequiresSystemProperty_existsOnly_present() {
         setSystemProperty("debug.mode", "any")
@@ -164,6 +193,13 @@ class RequiresTest {
     @DisplayName("@Requires(env): 环境变量不存在时不通过")
     fun testRequiresEnv_notExists() {
         assertFalse(ClassVisitorHandler.checkRequires(reflexOf(RequiresNonExistentEnv::class.java)))
+    }
+
+    @Test
+    @DisplayName("@Requires(env): 不等于 - PATH 存在且值不同时通过")
+    fun testRequiresEnv_notEquals_different() {
+        // PATH 环境变量存在且不等于 "nonexistent"
+        assertTrue(ClassVisitorHandler.checkRequires(reflexOf(RequiresPathNotEquals::class.java)))
     }
 
     @Test
@@ -217,6 +253,34 @@ class RequiresTest {
     }
 
     @Test
+    @DisplayName("checkSystemProperty: 不等于 - 值不同返回 true")
+    fun testSystemProperty_notEquals_different() {
+        setSystemProperty("server.type", "main")
+        assertTrue(ClassVisitorHandler.checkSystemProperty("server.type!=lobby"))
+    }
+
+    @Test
+    @DisplayName("checkSystemProperty: 不等于 - 值相同返回 false")
+    fun testSystemProperty_notEquals_same() {
+        setSystemProperty("server.type", "lobby")
+        assertFalse(ClassVisitorHandler.checkSystemProperty("server.type!=lobby"))
+    }
+
+    @Test
+    @DisplayName("checkSystemProperty: 不等于 - 属性不存在返回 true")
+    fun testSystemProperty_notEquals_notExists() {
+        assertTrue(ClassVisitorHandler.checkSystemProperty("nonexistent.key!=anyvalue"))
+    }
+
+    @Test
+    @DisplayName("checkSystemProperty: 不等于 - 值中包含 !=")
+    fun testSystemProperty_notEquals_valueContainsOperator() {
+        setSystemProperty("complex.key", "a!=b")
+        assertTrue(ClassVisitorHandler.checkSystemProperty("complex.key!=other"))
+        assertFalse(ClassVisitorHandler.checkSystemProperty("complex.key!=a!=b"))
+    }
+
+    @Test
     @DisplayName("checkEnvironmentVariable: PATH 环境变量存在")
     fun testEnvVariable_pathExists() {
         assertTrue(ClassVisitorHandler.checkEnvironmentVariable("PATH"))
@@ -229,10 +293,39 @@ class RequiresTest {
     }
 
     @Test
-    @DisplayName("边界情况: 系统属性键为空时抛出异常")
+    @DisplayName("checkEnvironmentVariable: 不等于 - 值不同返回 true")
+    fun testEnvVariable_notEquals_different() {
+        // PATH 存在且不等于 "nonexistent"
+        assertTrue(ClassVisitorHandler.checkEnvironmentVariable("PATH!=nonexistent"))
+    }
+
+    @Test
+    @DisplayName("checkEnvironmentVariable: 不等于 - 变量不存在返回 true")
+    fun testEnvVariable_notEquals_notExists() {
+        assertTrue(ClassVisitorHandler.checkEnvironmentVariable("TABOOLIB_TEST_NONEXISTENT_VAR!=anyvalue"))
+    }
+
+    @Test
+    @DisplayName("边界情况: 系统属性键为空时抛出异常 (=)")
     fun testEdgeCase_emptyKey() {
         assertThrows<IllegalArgumentException> {
             ClassVisitorHandler.checkSystemProperty("=value")
+        }
+    }
+
+    @Test
+    @DisplayName("边界情况: 系统属性键为空时抛出异常 (!=)")
+    fun testEdgeCase_emptyKey_notEquals() {
+        assertThrows<IllegalArgumentException> {
+            ClassVisitorHandler.checkSystemProperty("!=value")
+        }
+    }
+
+    @Test
+    @DisplayName("边界情况: 环境变量键为空时抛出异常 (!=)")
+    fun testEdgeCase_emptyEnvKey_notEquals() {
+        assertThrows<IllegalArgumentException> {
+            ClassVisitorHandler.checkEnvironmentVariable("!=value")
         }
     }
 

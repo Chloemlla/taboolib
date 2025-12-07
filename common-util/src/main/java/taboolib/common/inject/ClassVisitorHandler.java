@@ -154,9 +154,20 @@ public class ClassVisitorHandler {
     /**
      * 检查系统属性条件
      *
-     * @param condition 格式: "key=value" 或 "key"（仅检查存在）
+     * @param condition 格式: "key=value"、"key!=value" 或 "key"（仅检查存在）
      */
     static boolean checkSystemProperty(String condition) {
+        // 先检查不等于操作符（必须在等于之前，因为 != 包含 =）
+        int neqIdx = condition.indexOf("!=");
+        if (neqIdx != -1) {
+            String key = condition.substring(0, neqIdx);
+            if (key.isEmpty()) {
+                throw new IllegalArgumentException("系统属性条件格式错误: key 不能为空");
+            }
+            String unexpectedValue = condition.substring(neqIdx + 2);
+            String actualValue = System.getProperty(key);
+            return !unexpectedValue.equals(actualValue);
+        }
         int idx = condition.indexOf('=');
         if (idx == -1) {
             // 仅检查存在
@@ -164,6 +175,9 @@ public class ClassVisitorHandler {
         } else {
             // 检查键值匹配
             String key = condition.substring(0, idx);
+            if (key.isEmpty()) {
+                throw new IllegalArgumentException("系统属性条件格式错误: key 不能为空");
+            }
             String expectedValue = condition.substring(idx + 1);
             String actualValue = System.getProperty(key);
             return expectedValue.equals(actualValue);
@@ -173,9 +187,20 @@ public class ClassVisitorHandler {
     /**
      * 检查环境变量条件
      *
-     * @param condition 格式: "KEY=value" 或 "KEY"（仅检查存在）
+     * @param condition 格式: "KEY=value"、"KEY!=value" 或 "KEY"（仅检查存在）
      */
     static boolean checkEnvironmentVariable(String condition) {
+        // 先检查不等于操作符（必须在等于之前，因为 != 包含 =）
+        int neqIdx = condition.indexOf("!=");
+        if (neqIdx != -1) {
+            String key = condition.substring(0, neqIdx);
+            if (key.isEmpty()) {
+                throw new IllegalArgumentException("环境变量条件格式错误: key 不能为空");
+            }
+            String unexpectedValue = condition.substring(neqIdx + 2);
+            String actualValue = System.getenv(key);
+            return !unexpectedValue.equals(actualValue);
+        }
         int idx = condition.indexOf('=');
         if (idx == -1) {
             // 仅检查存在
@@ -183,6 +208,9 @@ public class ClassVisitorHandler {
         } else {
             // 检查键值匹配
             String key = condition.substring(0, idx);
+            if (key.isEmpty()) {
+                throw new IllegalArgumentException("环境变量条件格式错误: key 不能为空");
+            }
             String expectedValue = condition.substring(idx + 1);
             String actualValue = System.getenv(key);
             return expectedValue.equals(actualValue);
