@@ -3,10 +3,7 @@ package taboolib.common.inject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.tabooproject.reflex.*;
-import taboolib.common.Inject;
-import taboolib.common.LifeCycle;
-import taboolib.common.PrimitiveIO;
-import taboolib.common.TabooLib;
+import taboolib.common.*;
 import taboolib.common.io.ProjectInfoKt;
 import taboolib.common.io.ProjectScannerKt;
 import taboolib.common.platform.Ghost;
@@ -68,8 +65,8 @@ public class ClassVisitorHandler {
                     if (isTabooLibClass(key) && !value.getStructure().isAnnotationPresent(Inject.class)) {
                         continue;
                     }
-                    // 检测有效平台
-                    if (checkPlatform(value)) {
+                    // 检测有效平台 & 条件注解
+                    if (checkPlatform(value) && checkRequires(value)) {
                         cache.add(value);
                     }
                 }
@@ -90,6 +87,134 @@ public class ClassVisitorHandler {
             return value.isEmpty() || value.contains(Platform.CURRENT.name());
         }
         return true;
+    }
+
+    /**
+     * 检查指定类是否满足 @Requires 条件
+     * <p>
+     * 单个 @Requires 内的所有条件是 AND 关系（必须全部满足）
+     * 多个 @Requires 注解之间是 OR 关系（满足任意一个即可）
+     * </p>
+     */
+    public static boolean checkRequires(ReflexClass cls) {
+        if (cls.getStructure().isAnnotationPresent(Requires.class)) {
+            ClassAnnotation annotation = cls.getStructure().getAnnotation(Requires.class);
+            return checkSingleRequires(annotation);
+        }
+        return true;
+    }
+
+    /**
+     * 检查单个 @Requires 注解的所有条件（AND 关系）
+     */
+    private static boolean checkSingleRequires(ClassAnnotation annotation) {
+        // 1. 检查必须存在的类
+        List<String> requiredClasses = annotation.list("classes");
+        for (String className : requiredClasses) {
+            if (!isClassPresent(className)) {
+                return false;
+            }
+        }
+        // 2. 检查必须不存在的类
+        List<String> missingClasses = annotation.list("missingClasses");
+        for (String className : missingClasses) {
+            if (isClassPresent(className)) {
+                return false;
+            }
+        }
+        // 3. 检查系统属性
+        List<String> systemProperties = annotation.list("systemProperty");
+        for (String prop : systemProperties) {
+            if (!checkSystemProperty(prop)) {
+                return false;
+            }
+        }
+        // 4. 检查环境变量
+        List<String> envVars = annotation.list("env");
+        for (String env : envVars) {
+            if (!checkEnvironmentVariable(env)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 检查类是否存在
+     */
+    static boolean isClassPresent(String className) {
+        try {
+            Class.forName(className, false, ClassVisitorHandler.class.getClassLoader());
+            return true;
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
+    }
+
+    /**
+     * 检查系统属性条件
+     *
+     * @param condition 格式: "key=value"、"key!=value" 或 "key"（仅检查存在）
+     */
+    static boolean checkSystemProperty(String condition) {
+        // 先检查不等于操作符（必须在等于之前，因为 != 包含 =）
+        int neqIdx = condition.indexOf("!=");
+        if (neqIdx != -1) {
+            String key = condition.substring(0, neqIdx);
+            if (key.isEmpty()) {
+                throw new IllegalArgumentException("系统属性条件格式错误: key 不能为空");
+            }
+            String unexpectedValue = condition.substring(neqIdx + 2);
+            String actualValue = System.getProperty(key);
+            return !unexpectedValue.equals(actualValue);
+        }
+        int idx = condition.indexOf('=');
+        if (idx == -1) {
+            // 仅检查存在
+            return System.getProperty(condition) != null;
+        } else {
+            // 检查键值匹配
+            String key = condition.substring(0, idx);
+            if (key.isEmpty()) {
+                throw new IllegalArgumentException("系统属性条件格式错误: key 不能为空");
+            }
+            String expectedValue = condition.substring(idx + 1);
+            String actualValue = System.getProperty(key);
+            return expectedValue.equals(actualValue);
+        }
+    }
+
+    /**
+     * 检查环境变量条件
+     *
+     * @param condition 格式: "KEY=value"、"KEY!=value" 或 "KEY"（仅检查存在）
+     */
+    static boolean checkEnvironmentVariable(String condition) {
+        // 先检查不等于操作符（必须在等于之前，因为 != 包含 =）
+        int neqIdx = condition.indexOf("!=");
+        if (neqIdx != -1) {
+            String key = condition.substring(0, neqIdx);
+            if (key.isEmpty()) {
+                throw new IllegalArgumentException("环境变量条件格式错误: key 不能为空");
+            }
+            String unexpectedValue = condition.substring(neqIdx + 2);
+            String actualValue = System.getenv(key);
+            return !unexpectedValue.equals(actualValue);
+        }
+        int idx = condition.indexOf('=');
+        if (idx == -1) {
+            // 仅检查存在
+            return System.getenv(condition) != null;
+        } else {
+            // 检查键值匹配
+            String key = condition.substring(0, idx);
+            if (key.isEmpty()) {
+                throw new IllegalArgumentException("环境变量条件格式错误: key 不能为空");
+            }
+            String expectedValue = condition.substring(idx + 1);
+            String actualValue = System.getenv(key);
+            return expectedValue.equals(actualValue);
+        }
     }
 
     /**
