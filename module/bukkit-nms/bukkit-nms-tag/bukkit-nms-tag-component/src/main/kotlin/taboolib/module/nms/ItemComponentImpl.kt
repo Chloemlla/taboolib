@@ -4,6 +4,7 @@ import com.mojang.authlib.properties.PropertyMap
 import net.minecraft.core.ClientAsset
 import net.minecraft.core.Holder
 import net.minecraft.core.component.DataComponentType
+import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.network.chat.IChatBaseComponent
 import net.minecraft.resources.MinecraftKey
 import net.minecraft.resources.ResourceKey
@@ -38,8 +39,10 @@ import net.minecraft.world.level.block.entity.BannerPatternLayers
 import net.minecraft.world.level.block.entity.EnumBannerPatternType
 import net.minecraft.world.level.block.entity.PotDecorations
 import net.minecraft.world.level.saveddata.maps.MapId
+import org.bukkit.craftbukkit.v1_21_R5.inventory.CraftItemStack
 import org.tabooproject.reflex.Reflex.Companion.getProperty
 import org.tabooproject.reflex.Reflex.Companion.invokeMethod
+import taboolib.common.platform.function.info
 import java.util.*
 import kotlin.jvm.optionals.getOrDefault
 import kotlin.jvm.optionals.getOrNull
@@ -124,7 +127,7 @@ class ItemComponentImpl : ItemComponent {
             is HorseColor -> getHorseColor(nbtTag)
             is EntityLlama.Variant -> getEntityLlamaVariant(nbtTag)
             is Axolotl.Variant -> getAxolotlVariant(nbtTag)
-
+            is DataComponentType<*> -> ItemTagData("null")
             else -> null
         }
     }
@@ -496,8 +499,8 @@ class ItemComponentImpl : ItemComponent {
     }
 
     fun getTool(value: Tool): ItemTagData {
-        val rules = "rules" to itemTag("speeds" to ItemTagList(value.rules.map { ItemTagData(it.speed.get()) }))
-        val correctForDrops = "correctForDrops" to ItemTagList(value.rules.map { ItemTagData(it.correctForDrops.get().toString()) })
+        val rules = "rules" to itemTag("speeds" to ItemTagList(value.rules.map { ItemTagData(it.speed.getOrDefault(-1f)) }))
+        val correctForDrops = "correctForDrops" to ItemTagList(value.rules.map { ItemTagData(it.correctForDrops.getOrDefault(false)) })
         val damagePerBlock = "damagePerBlock" to value.damagePerBlock
         val defaultMiningSpeed = "defaultMiningSpeed" to value.defaultMiningSpeed
         val canDestroyBlocksInCreative = "canDestroyBlocksInCreative" to value.canDestroyBlocksInCreative.toString()
@@ -579,7 +582,7 @@ class ItemComponentImpl : ItemComponent {
             value.getProperty<Set<DataComponentType<*>>>("hiddenComponents")!!
         }
         val hideTooltip = "hideTooltip" to hideTool
-        val hiddenComponents = "hiddenComponents" to ItemTagList(components.map { itemTagToBukkitCopy(it) })
+        val hiddenComponents = "hiddenComponents" to ItemTagList(components.map { ItemTagData(BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(it).toString()) })
         return itemTag(hideTooltip, hiddenComponents)
     }
 
@@ -795,13 +798,6 @@ class ItemComponentImpl : ItemComponent {
     }
 
     private fun itemTag(vararg pairs: Pair<String, Any>): ItemTagData {
-        return ItemTag(pairs.associate {
-            if (it.second is ItemTagData) {
-                it.first to it.second as ItemTagData
-            } else {
-                it.first to ItemTagData.toNBT(it.second)
-            }
-        }
-        )
+        return ItemTag(pairs.associate { it.first to ((it.second as? ItemTagData) ?: ItemTagData.toNBT(it.second)) })
     }
 }

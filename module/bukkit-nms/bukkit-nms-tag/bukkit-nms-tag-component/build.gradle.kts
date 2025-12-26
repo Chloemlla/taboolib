@@ -9,7 +9,6 @@ dependencies {
     compileOnly(project(":platform:platform-bukkit"))
     compileOnly(project(":platform:platform-bukkit-impl"))
     compileOnly(project(":module:bukkit-nms:bukkit-nms-tag"))
-//    compileOnly("com.mojang:authlib:6.0.58")
+    compileOnly("com.mojang:authlib:7.1.61")
     compileOnly("it.unimi.dsi:fastutil:8.5.15")
-    compileOnly(fileTree("libs"))
 }

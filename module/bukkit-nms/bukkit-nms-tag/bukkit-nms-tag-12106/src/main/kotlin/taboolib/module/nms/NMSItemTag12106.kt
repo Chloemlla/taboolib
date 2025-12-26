@@ -11,7 +11,9 @@ import net.minecraft.world.item.component.CustomData
 import org.bukkit.craftbukkit.v1_21_R5.CraftRegistry
 import org.bukkit.craftbukkit.v1_21_R5.inventory.CraftItemStack
 import org.bukkit.inventory.ItemStack
+import org.tabooproject.reflex.Reflex.Companion.invokeMethod
 import java.lang.reflect.Modifier
+import java.util.*
 import kotlin.jvm.optionals.getOrNull
 
 /**
@@ -218,15 +220,20 @@ class NMSItemTag12106 : NMSItemTag() {
             is Boolean -> ItemTagData(nbtTag)
 
             // 不支持的类型
-            else -> ItemComponent.instance.getTagData(nbtTag)?:error("Unsupported type: ${nbtTag::class.java}")
+            else -> ItemComponent.instance.getTagData(nbtTag) ?: error("Unsupported type: ${nbtTag::class.java}")
         }
     }
 
     private fun net.minecraft.world.item.ItemStack.toNbt(): NBTBase? {
-        return net.minecraft.world.item.ItemStack.CODEC.encodeStart(
+        val encode = net.minecraft.world.item.ItemStack.CODEC.encodeStart(
             CraftRegistry.getMinecraftRegistry().createSerializationContext(DynamicOpsNBT.INSTANCE),
             this,
-        ).result().getOrNull()
+        )
+        return try {
+            encode.result()
+        } catch (_: Error) {
+            encode.invokeMethod<Optional<NBTBase>>("result")
+        }?.getOrNull()
     }
 
     private fun NBTBase.toItemStack(): ItemStack? {
