@@ -1,6 +1,7 @@
 package taboolib.module.ui.type.impl
 
 import org.bukkit.Material
+import org.bukkit.event.inventory.ClickType.*
 import org.bukkit.event.inventory.InventoryAction
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
@@ -15,6 +16,9 @@ open class StorableChestImpl(title: String) : ChestImpl(title), StorableChest {
 
     /** 页面规则 **/
     val rule = RuleImpl()
+
+    /** 是否允许数字键交互 */
+    var allowNumberKey = true
 
     /**
      * 定义页面规则
@@ -106,7 +110,7 @@ open class StorableChestImpl(title: String) : ChestImpl(title), StorableChest {
                     // 提取物品
                     it.dragEvent().cursor = rule.readItem(it.inventory, clickSlot)
                     // 写入物品
-                    rule.writeItem(it.inventory, cursor, clickSlot, BukkitClickType.LEFT)
+                    rule.writeItem(it.inventory, cursor, clickSlot, LEFT)
                 } else if (clickSlot >= 0 && clickSlot < it.inventory.size) {
                     it.isCancelled = true
                 }
@@ -155,7 +159,7 @@ open class StorableChestImpl(title: String) : ChestImpl(title), StorableChest {
             // 获取行为
             val action = when {
                 it.clickEvent().click.isShiftClick && it.rawSlot >= 0 && it.rawSlot < it.inventory.size -> ActionQuickTake()
-                it.clickEvent().click == org.bukkit.event.inventory.ClickType.NUMBER_KEY -> ActionKeyboard()
+                it.clickEvent().click == NUMBER_KEY && allowNumberKey -> ActionKeyboard()
                 else -> ActionClick()
             }
             val cursor = action.getCursor(it) ?: ItemStack(Material.AIR)
