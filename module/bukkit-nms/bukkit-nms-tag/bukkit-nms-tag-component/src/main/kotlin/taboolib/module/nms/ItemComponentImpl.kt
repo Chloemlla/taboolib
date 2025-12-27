@@ -576,14 +576,14 @@ class ItemComponentImpl : ItemComponent {
             value.getProperty<Boolean>("hideTooltip")!!
         }
 
-        val components = try {
-            value.hiddenComponents
-        } catch (_: NoSuchMethodError) {
-            value.getProperty<Set<DataComponentType<*>>>("hiddenComponents")!!
-        }
+//        val components = try {
+//            value.hiddenComponents
+//        } catch (_: NoSuchMethodError) {
+//            value.getProperty<Set<DataComponentType<*>>>("hiddenComponents")!!
+//        }
         val hideTooltip = "hideTooltip" to hideTool
-        val hiddenComponents = "hiddenComponents" to ItemTagList(components.map { ItemTagData(BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(it).toString()) })
-        return itemTag(hideTooltip, hiddenComponents)
+//        val hiddenComponents = "hiddenComponents" to ItemTagList(components.map { ItemTagData(BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(it).toString()) })
+        return itemTag(hideTooltip)
     }
 
     fun getUseCooldown(value: UseCooldown): ItemTagData {
