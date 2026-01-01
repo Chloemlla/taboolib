@@ -50,29 +50,40 @@ public class ClassVisitorHandler {
      */
     public static Set<ReflexClass> getClasses() {
         if (classes == null) {
-            HashSet<ReflexClass> cache = new LinkedHashSet<>();
             long time = TabooLib.execution(() -> {
                 // 获取所有类
                 // 这里会首次触发 runningClassMapInJar 的初始化
-                for (Map.Entry<String, ReflexClass> entry : ProjectScannerKt.getRunningClassMap().entrySet()) {
-                    String key = entry.getKey();
-                    ReflexClass value = entry.getValue();
-                    // 排除非本项目 && 排除第三方库 && 排除匿名内部类
-                    if (!isProjectClass(key) || isLibraryClass(key) || isAnonymousInnerClass(key)) {
-                        continue;
-                    }
-                    // 排除属于 TabooLib 但没有 Inject 注解的类
-                    if (isTabooLibClass(key) && !value.getStructure().isAnnotationPresent(Inject.class)) {
-                        continue;
-                    }
-                    // 检测有效平台 & 条件注解
-                    if (checkPlatform(value) && checkRequires(value)) {
-                        cache.add(value);
-                    }
-                }
-                classes = cache;
+                Map<String, ReflexClass> allClasses = ProjectScannerKt.getRunningClassMap();
+                // 第一阶段：基于类名快速过滤（不触发反序列化）
+                long phase1Start = System.currentTimeMillis();
+                List<Map.Entry<String, ReflexClass>> candidates = allClasses.entrySet().parallelStream()
+                        .filter(entry -> {
+                            String key = entry.getKey();
+                            // 排除非本项目 && 排除第三方库 && 排除匿名内部类
+                            return isProjectClass(key) && !isLibraryClass(key) && !isAnonymousInnerClass(key);
+                        })
+                        .collect(Collectors.toList());
+                long phase1Time = System.currentTimeMillis() - phase1Start;
+                PrimitiveIO.debug("ClassVisitor 第一阶段过滤: {0} -> {1} 个候选类，用时 {2} 毫秒。", allClasses.size(), candidates.size(), phase1Time);
+                // 第二阶段：并行检查注解和平台条件（会触发反序列化，但只针对候选类）
+                long phase2Start = System.currentTimeMillis();
+                classes = candidates.parallelStream()
+                        .filter(entry -> {
+                            String key = entry.getKey();
+                            ReflexClass value = entry.getValue();
+                            // 排除属于 TabooLib 但没有 Inject 注解的类
+                            if (isTabooLibClass(key) && !value.getStructure().isAnnotationPresent(Inject.class)) {
+                                return false;
+                            }
+                            // 检测有效平台 & 条件注解
+                            return checkPlatform(value) && checkRequires(value);
+                        })
+                        .map(Map.Entry::getValue)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+                long phase2Time = System.currentTimeMillis() - phase2Start;
+                PrimitiveIO.debug("ClassVisitor 第二阶段过滤: {0} -> {1} 个有效类，用时 {2} 毫秒。", candidates.size(), classes.size(), phase2Time);
             });
-            PrimitiveIO.debug("ClassVisitor 收集到 {0} 个有效类，用时 {1} 毫秒。", classes.size(), time);
+            PrimitiveIO.debug("ClassVisitor 总用时 {0} 毫秒。", time);
         }
         return classes;
     }
@@ -244,6 +255,7 @@ public class ClassVisitorHandler {
      * @param lifeCycle 生命周期
      */
     public static void injectAll(@NotNull LifeCycle lifeCycle) {
+        long startTime = System.currentTimeMillis();
         // 处理延迟注入的类
         final Set<ReflexClass> delayedForThisCycle = delayedClasses.get(lifeCycle);
         if (delayedForThisCycle != null) {
@@ -258,10 +270,53 @@ public class ClassVisitorHandler {
             delayedClasses.remove(lifeCycle);
         }
         // 处理正常的类注入
+        Set<ReflexClass> allClasses = getClasses();
+        Map<String, Long> visitorTimes = new HashMap<>();
         for (Map.Entry<Byte, VisitorGroup> entry : propertyMap.entrySet()) {
-            for (ReflexClass clazz : getClasses()) {
-                inject(clazz, entry.getValue(), lifeCycle, false);
+            for (ClassVisitor visitor : entry.getValue().get(lifeCycle)) {
+                String visitorName = visitor.getClass().getSimpleName();
+                long visitorStart = System.currentTimeMillis();
+                for (ReflexClass clazz : allClasses) {
+                    injectSingleVisitor(clazz, visitor, lifeCycle);
+                }
+                long visitorTime = System.currentTimeMillis() - visitorStart;
+                visitorTimes.merge(visitorName, visitorTime, Long::sum);
             }
+        }
+        long elapsed = System.currentTimeMillis() - startTime;
+        if (elapsed > 50 && PrimitiveSettings.IS_DEBUG_MODE) {
+            PrimitiveIO.debug("injectAll({0}): {1} 个类, 用时 {2} 毫秒", lifeCycle.name(), allClasses.size(), elapsed);
+            visitorTimes.entrySet().stream()
+                .filter(e -> e.getValue() > 10)
+                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                .forEach(e -> PrimitiveIO.debug("  - {0}: {1} 毫秒", e.getKey(), e.getValue()));
+        }
+    }
+    
+    /**
+     * 对单个类执行单个 visitor
+     */
+    private static void injectSingleVisitor(ReflexClass clazz, ClassVisitor visitor, LifeCycle lifeCycle) {
+        // 跳过注入
+        if (clazz.getStructure().isAnnotationPresent(Ghost.class)) {
+            return;
+        }
+        // 检查 SkipTo
+        if (clazz.getStructure().isAnnotationPresent(SkipTo.class)) {
+            int skip = clazz.getStructure().getAnnotation(SkipTo.class).getEnum("value", LifeCycle.CONST).ordinal();
+            if (skip > lifeCycle.ordinal()) return;
+        }
+        try {
+            visitor.visitStart(clazz);
+            for (ClassField field : clazz.getStructure().getFields()) {
+                visitor.visit(field, clazz);
+            }
+            for (ClassMethod method : clazz.getStructure().getMethods()) {
+                visitor.visit(method, clazz);
+            }
+            visitor.visitEnd(clazz);
+        } catch (Throwable ex) {
+            ex.printStackTrace();
         }
     }
 
