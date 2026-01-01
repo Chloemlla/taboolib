@@ -94,7 +94,8 @@ public final class XItemStack {
             SUPPORTS_Inventory_getStorageContents,
             SUPPORTS_CUSTOM_MODEL_DATA,
             SUPPORTS_ADVANCED_CUSTOM_MODEL_DATA,
-            SUPPORTS_ITEM_MODEL;
+            SUPPORTS_ITEM_MODEL,
+            SUPPORTS_ITEM_NAME;
 
     static {
         boolean supportsPotionColor = false,
@@ -102,7 +103,8 @@ public final class XItemStack {
                 supportsGetStorageContents = false,
                 supportSCustomModelData = false,
                 supportsAdvancedCustomModelData = false,
-                supportsItemModel = false;
+                supportsItemModel = false,
+                supportsItemName = false;
 
 
         try {
@@ -130,6 +132,12 @@ public final class XItemStack {
         }
 
         try {
+            ItemMeta.class.getDeclaredMethod("setItemName", String.class);
+            supportsItemName = true;
+        } catch (NoSuchMethodException ignored) {
+        }
+
+        try {
             Class.forName("org.bukkit.inventory.meta.PotionMeta").getMethod("setColor", Color.class);
             supportsPotionColor = true;
         } catch (Throwable ignored) {
@@ -147,6 +155,7 @@ public final class XItemStack {
         SUPPORTS_CUSTOM_MODEL_DATA = supportSCustomModelData;
         SUPPORTS_ADVANCED_CUSTOM_MODEL_DATA = supportsAdvancedCustomModelData;
         SUPPORTS_ITEM_MODEL = supportsItemModel;
+        SUPPORTS_ITEM_NAME = supportsItemName;
     }
 
     private interface MetaHandler<M extends ItemMeta> {
@@ -462,6 +471,11 @@ public final class XItemStack {
             if (meta.hasDisplayName()) config.set("name", translator.apply(meta.getDisplayName()));
             if (meta.hasLore())
                 config.set("lore", meta.getLore().stream().map(translator).collect(Collectors.toList()));
+
+            if (SUPPORTS_ITEM_NAME && meta.hasItemName()) {
+                String itemName = meta.getItemName();
+                config.set("item-name", translator.apply(itemName));
+            }
 
             customModelData();
             if (SUPPORTS_UNBREAKABLE) {
@@ -805,6 +819,7 @@ public final class XItemStack {
             getOrCreateMeta();
             handleDurability();
             displayName();
+            itemName();
             unbreakable();
             customModelData();
             lore();
@@ -967,6 +982,19 @@ public final class XItemStack {
                 meta.setDisplayName(translated);
             } else if (name != null && name.isEmpty())
                 meta.setDisplayName(" "); // For GUI easy access configuration purposes
+        }
+
+        private void itemName() {
+            if (!SUPPORTS_ITEM_NAME)
+                return;
+
+            String itemName = config.getString("item-name");
+            if (!Strings.isNullOrEmpty(itemName)) {
+                String translated = translator.apply(itemName);
+                meta.setItemName(translated);
+            } else if (itemName != null && itemName.isEmpty()) {
+                meta.setItemName(" ");
+            }
         }
 
         private void itemFlags() {
