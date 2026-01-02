@@ -122,6 +122,9 @@ public class ClassVisitorHandler {
         // 1. 检查必须存在的类
         List<String> requiredClasses = annotation.list("classes");
         for (String className : requiredClasses) {
+            if (className.startsWith("!")) {
+                className = className.substring(1);
+            }
             if (!isClassPresent(className)) {
                 return false;
             }
@@ -129,6 +132,9 @@ public class ClassVisitorHandler {
         // 2. 检查必须不存在的类
         List<String> missingClasses = annotation.list("missingClasses");
         for (String className : missingClasses) {
+            if (className.startsWith("!")) {
+                className = className.substring(1);
+            }
             if (isClassPresent(className)) {
                 return false;
             }
