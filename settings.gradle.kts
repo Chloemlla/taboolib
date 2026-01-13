@@ -67,5 +67,6 @@ include(
     "platform:platform-bungee-impl",
     "platform:platform-velocity",
     "platform:platform-velocity-impl",
-    "platform:platform-afybroker"
+    "platform:platform-afybroker",
+    "platform:platform-hytale"
 )
