@@ -311,11 +311,11 @@ class HytalePlayer(val player: Player) : ProxyPlayer {
     }
 
     override fun sendMessage(message: String) {
-        player.sendMessage(Message.raw(message))
+        player.sendMessage(Message.raw(HytaleCommandSender.stripColor(message)))
     }
 
     override fun sendRawMessage(message: String) {
-        player.sendMessage(Message.raw(message))
+        player.sendMessage(Message.raw(HytaleCommandSender.stripColor(message)))
     }
 
     override fun sendParticle(particle: String, location: Location, offset: Vector, count: Int, speed: Double, data: Any?) {
