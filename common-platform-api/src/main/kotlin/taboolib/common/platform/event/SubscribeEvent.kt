@@ -5,10 +5,12 @@ package taboolib.common.platform.event
 annotation class SubscribeEvent(
     val priority: EventPriority = EventPriority.NORMAL,
     val ignoreCancelled: Boolean = false,
-    // 仅限 BungeeCord 使用
+    // 仅限 BungeeCord 和 Hytale 使用
     val level: Int = -1,
     // 仅限 Velocity 使用
     val postOrder: PostOrder = PostOrder.NORMAL,
+    // 仅限 Hytale 使用
+    val eventType: HytaleEventType = HytaleEventType.GLOBAL,
     // 用于 OptionalEvent
     val bind: String = ""
 )

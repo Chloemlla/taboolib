@@ -1,17 +1,24 @@
 package taboolib.platform
 
+import com.hypixel.hytale.component.system.EcsEvent
+import com.hypixel.hytale.component.system.ISystem
 import com.hypixel.hytale.event.EventRegistration
+import com.hypixel.hytale.event.IAsyncEvent
 import com.hypixel.hytale.event.IBaseEvent
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
 import taboolib.common.Inject
 import taboolib.common.platform.Awake
 import taboolib.common.platform.Platform
 import taboolib.common.platform.PlatformSide
 import taboolib.common.platform.event.EventPriority
+import taboolib.common.platform.event.HytaleEventHandler
 import taboolib.common.platform.event.PostOrder
 import taboolib.common.platform.event.ProxyListener
 import taboolib.common.platform.service.PlatformListener
 import taboolib.common.util.unsafeLazy
+import java.util.concurrent.CompletableFuture
 import java.util.function.Consumer
+import java.util.function.Function
 
 /**
  * TabooLib
@@ -31,20 +38,74 @@ class HytaleListener : PlatformListener {
         error("Unsupported")
     }
 
-    @Suppress("UNCHECKED_CAST")
     override fun <T> registerListener(event: Class<T>, postOrder: PostOrder, func: (T) -> Unit): ProxyListener {
-        val hytalePriority = com.hypixel.hytale.event.EventPriority.values()[postOrder.ordinal]
-        val eventClass = event as Class<IBaseEvent<Void>>
-        val consumer = Consumer<IBaseEvent<Void>> { e -> func(e as T) }
-        val registration = plugin.eventRegistry.register(hytalePriority, eventClass, consumer) ?: error("Failed to register event listener for ${event.name}")
-        return HytaleProxyListener(registration)
+        error("Unsupported")
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    override fun <T> registerListener(event: Class<T>, handler: HytaleEventHandler<T>): ProxyListener {
+        return when (handler) {
+            is HytaleEventHandler.Sync -> registerSyncEvent(event, handler)
+            is HytaleEventHandler.AsyncBase -> registerAsyncEvent(event, handler)
+            is HytaleEventHandler.Ecs<*, *> -> registerEcsEvent(event as Class<EcsEvent>, handler as HytaleEventHandler.Ecs<EcsEvent, Any>)
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> registerSyncEvent(event: Class<T>, handler: HytaleEventHandler.Sync<T>): ProxyListener {
+        val registry = plugin.eventRegistry
+        val priority = handler.priority
+        val key = handler.key
+        val eventClass = event as Class<IBaseEvent<Any>>
+        val consumer = Consumer<IBaseEvent<Any>> { e -> handler.func(e as T) }
+        val registration: EventRegistration<*, *>? = when (handler) {
+            is HytaleEventHandler.Normal -> if (key != null) {
+                registry.register(priority, eventClass, key, consumer)
+            } else {
+                registry.register(priority, eventClass as Class<IBaseEvent<Void>>, consumer as Consumer<IBaseEvent<Void>>)
+            }
+            is HytaleEventHandler.Global -> registry.registerGlobal(priority, eventClass, consumer)
+            is HytaleEventHandler.Unhandled -> registry.registerUnhandled(priority, eventClass, consumer)
+        }
+        return HytaleProxyListener(registration ?: error("Failed to register event listener for ${event.name}"))
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> registerAsyncEvent(event: Class<T>, handler: HytaleEventHandler.AsyncBase<T>): ProxyListener {
+        val registry = plugin.eventRegistry
+        val priority = handler.priority
+        val key = handler.key
+        val eventClass = event as Class<IAsyncEvent<Any>>
+        val function = Function<CompletableFuture<IAsyncEvent<Any>>, CompletableFuture<IAsyncEvent<Any>>> { cf ->
+            (handler.func as Function<CompletableFuture<Any>, CompletableFuture<Any>>).apply(cf as CompletableFuture<Any>) as CompletableFuture<IAsyncEvent<Any>>
+        }
+        val registration: EventRegistration<*, *>? = when (handler) {
+            is HytaleEventHandler.Async -> if (key != null) {
+                registry.registerAsync(priority, eventClass, key, function)
+            } else {
+                registry.registerAsync(priority, eventClass as Class<IAsyncEvent<Void>>, function as Function<CompletableFuture<IAsyncEvent<Void>>, CompletableFuture<IAsyncEvent<Void>>>)
+            }
+            is HytaleEventHandler.AsyncGlobal -> registry.registerAsyncGlobal(priority, eventClass, function)
+            is HytaleEventHandler.AsyncUnhandled -> registry.registerAsyncUnhandled(priority, eventClass, function)
+        }
+        return HytaleProxyListener(registration ?: error("Failed to register async event listener for ${event.name}"))
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun registerEcsEvent(event: Class<EcsEvent>, handler: HytaleEventHandler.Ecs<EcsEvent, Any>): ProxyListener {
+        val system = HytaleEcsEventSystem(event) { ctx, e -> handler.func(ctx, e) }
+        plugin.entityStoreRegistry.registerSystem(system as ISystem<EntityStore>)
+        return HytaleEcsProxyListener(system)
     }
 
     override fun unregisterListener(proxyListener: ProxyListener) {
-        if (proxyListener is HytaleProxyListener) {
-            proxyListener.registration.unregister()
+        when (proxyListener) {
+            is HytaleProxyListener -> proxyListener.registration.unregister()
+            is HytaleEcsProxyListener -> {} // ECS 系统会在插件关闭时自动注销
         }
     }
 
     class HytaleProxyListener(val registration: EventRegistration<*, *>) : ProxyListener
+
+    class HytaleEcsProxyListener(val system: HytaleEcsEventSystem<*>) : ProxyListener
 }
