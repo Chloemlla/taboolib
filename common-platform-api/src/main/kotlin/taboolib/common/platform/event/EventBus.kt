@@ -132,15 +132,16 @@ class EventBus : ClassVisitor(-1) {
     @Suppress("UNCHECKED_CAST")
     private fun registerHytale(method: ClassMethod, optionalBind: Class<*>?, event: ClassAnnotation, obj: Any?) {
         val priority = event.property("level", 0).toShort()
-        val hytaleType = event.enum("eventType", HytaleEventType.GLOBAL)
+        val hytaleType = event.enum("eventType", HytaleEventType.NORMAL)
+        val hytaleKey = event.property("eventKey", "").ifEmpty { null }
         val listenType = method.parameterTypes[0]
         val eventClass = if (listenType == OptionalEvent::class.java) optionalBind ?: return else listenType
         val optional = listenType == OptionalEvent::class.java
         val handler = when (hytaleType) {
-            HytaleEventType.NORMAL -> HytaleEventHandler.Normal(priority, null) { invoke(obj, method, it, optional) }
+            HytaleEventType.NORMAL -> HytaleEventHandler.Normal(priority, hytaleKey) { invoke(obj, method, it, optional) }
             HytaleEventType.GLOBAL -> HytaleEventHandler.Global(priority) { invoke(obj, method, it, optional) }
             HytaleEventType.UNHANDLED -> HytaleEventHandler.Unhandled(priority) { invoke(obj, method, it, optional) }
-            HytaleEventType.ASYNC -> HytaleEventHandler.Async(priority, null, invokeAsync(obj, method, optional))
+            HytaleEventType.ASYNC -> HytaleEventHandler.Async(priority, hytaleKey, invokeAsync(obj, method, optional))
             HytaleEventType.ASYNC_GLOBAL -> HytaleEventHandler.AsyncGlobal(priority, invokeAsync(obj, method, optional))
             HytaleEventType.ASYNC_UNHANDLED -> HytaleEventHandler.AsyncUnhandled(priority, invokeAsync(obj, method, optional))
             HytaleEventType.ECS -> {
