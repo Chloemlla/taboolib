@@ -65,7 +65,7 @@ open class PathTypeFactory(val entity: NodeEntity) {
         }
         // 假设中心方块可通过，且附近无危险方块，怪物宽度小于等于 1 格
         // 则允许通过
-        if (coverType === PathType.OPEN && entity.getPathfindingMalus(passable) == 0.0f && entity.width <= 1) {
+        if (coverType == PathType.OPEN && entity.getPathfindingMalus(passable) == 0.0f && entity.width <= 1) {
             return PathType.OPEN
         } else {
             // 否则返回危险方块
