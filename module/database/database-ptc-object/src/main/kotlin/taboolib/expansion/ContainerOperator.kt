@@ -264,6 +264,7 @@ abstract class ContainerOperator {
      */
     protected fun Any.value(): Any {
         return when (this) {
+            is Enum<*> -> this.name
             is UUID -> this.toString()
             is Char -> this.code
             else -> CustomTypeFactory.getCustomType(this)?.serialize(this) ?: this

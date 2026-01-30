@@ -130,7 +130,7 @@ class ContainerOperatorImpl(
         val typeClass = AnalyzedClass.of(dataList.first().javaClass)
         val action = ActionInsert(table.name, typeClass.members.map { it.name }.toTypedArray()).apply {
             dataList.forEach { data ->
-                values(typeClass.members.map { member -> typeClass.getValue(data, member).value() })
+                values(typeClass.members.map { member -> typeClass.getValue(data, member)?.value() })
             }
         }
         executeUpdate(action)
@@ -143,25 +143,30 @@ class ContainerOperatorImpl(
         }
         val name = if (usePrimaryKey) typeClass.primaryMemberName ?: error("No primary id found.") else null
         val value = if (usePrimaryKey) typeClass.getPrimaryMemberValue(data) else null
-        // 检查是否存在
-        val existsAction = ActionSelect(table.name).apply {
-            limit(1)
-            if (name != null) where(name eq value?.value())
-            where(filter)
-        }
-        val exists = executeQuery(existsAction) { it.next() }
-        if (exists) {
-            // 更新数据
-            val updateAction = ActionUpdate(table.name).apply {
+        // check-then-act 包裹在事务中，防止并发双重 INSERT
+        withTransaction { conn ->
+            val existsAction = ActionSelect(table.name).apply {
+                limit(1)
                 if (name != null) where(name eq value?.value())
                 where(filter)
-                typeClass.members.filter { !it.isFinal }.forEach { member ->
-                    set(member.name, typeClass.getValue(data, member).value())
-                }
             }
-            executeUpdate(updateAction)
-        } else {
-            insert(listOf(data))
+            val exists = executeQueryWith(conn, existsAction) { it.next() }
+            if (exists) {
+                val updateAction = ActionUpdate(table.name).apply {
+                    if (name != null) where(name eq value?.value())
+                    where(filter)
+                    typeClass.members.filter { !it.isFinal }.forEach { member ->
+                        set(member.name, typeClass.getValue(data, member)?.value())
+                    }
+                }
+                conn.executePrepared(updateAction.query, updateAction.elements, Statement.RETURN_GENERATED_KEYS) { executeUpdate() }
+            } else {
+                val insertTypeClass = AnalyzedClass.of(data.javaClass)
+                val insertAction = ActionInsert(table.name, insertTypeClass.members.map { it.name }.toTypedArray()).apply {
+                    values(insertTypeClass.members.map { member -> insertTypeClass.getValue(data, member)?.value() })
+                }
+                conn.executePrepared(insertAction.query, insertAction.elements, Statement.RETURN_GENERATED_KEYS) { executeUpdate() }
+            }
         }
     }
 
@@ -172,7 +177,7 @@ class ContainerOperatorImpl(
         }
         update(data, usePrimaryKey) {
             typeClass.members.filter { it.isKey }.forEach { member ->
-                member.name eq typeClass.getValue(data, member).value()
+                member.name eq typeClass.getValue(data, member)?.value()
             }
         }
     }
@@ -188,8 +193,8 @@ class ContainerOperatorImpl(
         val mutableMembers = typeClass.members.filter { !it.isFinal }
         // 构建唯一标识：@Id + @Key 的值
         fun buildKey(data: Any): String {
-            val id = typeClass.getPrimaryMemberValue(data).value().toString()
-            val keys = keyMembers.joinToString("|") { typeClass.getValue(data, it).value().toString() }
+            val id = typeClass.getPrimaryMemberValue(data)?.value().toString()
+            val keys = keyMembers.joinToString("|") { typeClass.getValue(data, it)?.value().toString() }
             return "$id|$keys"
         }
         withTransaction { conn ->
@@ -200,9 +205,9 @@ class ContainerOperatorImpl(
                 dataList.forEach { data ->
                     val checkAction = ActionSelect(table.name).apply {
                         limit(1)
-                        where(primaryName eq typeClass.getPrimaryMemberValue(data).value())
+                        where(primaryName eq typeClass.getPrimaryMemberValue(data)?.value())
                         keyMembers.forEach { member ->
-                            where(member.name eq typeClass.getValue(data, member).value())
+                            where(member.name eq typeClass.getValue(data, member)?.value())
                         }
                     }
                     val exists = executeQueryWith(conn, checkAction) { it.next() }
@@ -212,7 +217,7 @@ class ContainerOperatorImpl(
                 }
             } else {
                 // 无 @Key：只匹配 @Id，使用 IN 查询优化
-                val ids = dataList.map { typeClass.getPrimaryMemberValue(it).value() }.toTypedArray()
+                val ids = dataList.mapNotNull { typeClass.getPrimaryMemberValue(it)?.value() }.toTypedArray()
                 val action = ActionSelect(table.name).apply {
                     where { primaryName inside ids }
                 }
@@ -229,7 +234,7 @@ class ContainerOperatorImpl(
                 val key = if (keyMembers.isNotEmpty()) {
                     buildKey(data)
                 } else {
-                    typeClass.getPrimaryMemberValue(data).value().toString()
+                    typeClass.getPrimaryMemberValue(data)?.value().toString()
                 }
                 if (key in existingKeys) {
                     toUpdate += data
@@ -243,7 +248,7 @@ class ContainerOperatorImpl(
                 conn.prepareStatement(insertSql).use { stmt ->
                     toInsert.forEach { data ->
                         typeClass.members.forEachIndexed { i, member ->
-                            stmt.setObject(i + 1, typeClass.getValue(data, member).value())
+                            stmt.setObject(i + 1, typeClass.getValue(data, member)?.value())
                         }
                         stmt.addBatch()
                     }
@@ -258,12 +263,12 @@ class ContainerOperatorImpl(
                         var idx = 1
                         // SET 子句的值
                         mutableMembers.forEach { member ->
-                            stmt.setObject(idx++, typeClass.getValue(data, member).value())
+                            stmt.setObject(idx++, typeClass.getValue(data, member)?.value())
                         }
                         // WHERE 子句的值
-                        stmt.setObject(idx++, typeClass.getPrimaryMemberValue(data).value())
+                        stmt.setObject(idx++, typeClass.getPrimaryMemberValue(data)?.value())
                         keyMembers.forEach { member ->
-                            stmt.setObject(idx++, typeClass.getValue(data, member).value())
+                            stmt.setObject(idx++, typeClass.getValue(data, member)?.value())
                         }
                         stmt.addBatch()
                     }

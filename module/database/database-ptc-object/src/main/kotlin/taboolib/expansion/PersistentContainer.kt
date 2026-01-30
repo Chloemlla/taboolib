@@ -158,6 +158,24 @@ class PersistentContainer {
     }
 
     /**
+     * 多表联查
+     *
+     * ```kotlin
+     * val results = container.join {
+     *     from<Player>()
+     *     innerJoin<PlayerStats> {
+     *         on("player.username" eq pre("player_stats.username"))
+     *     }
+     *     where { "player.active" eq true }
+     *     limit(10)
+     * }.execute()
+     * ```
+     */
+    fun join(builder: JoinQuery.() -> Unit): JoinQuery {
+        return JoinQuery(container.dataSource).also(builder)
+    }
+
+    /**
      * 在事务中执行操作
      *
      * 事务中的所有操作要么全部成功提交，要么全部回滚。

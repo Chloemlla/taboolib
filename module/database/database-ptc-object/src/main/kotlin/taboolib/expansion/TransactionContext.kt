@@ -80,6 +80,15 @@ class TransactionContext internal constructor(
      * 检查事务是否应该回滚
      */
     internal fun shouldRollback() = rollbackOnly
+
+    /**
+     * 多表联查（事务内）
+     *
+     * 共享当前事务的 Connection，保证联查与其他操作在同一事务中。
+     */
+    fun join(builder: JoinQuery.() -> Unit): JoinQuery {
+        return JoinQuery(container.dataSource, connection).also(builder)
+    }
 }
 
 /**
