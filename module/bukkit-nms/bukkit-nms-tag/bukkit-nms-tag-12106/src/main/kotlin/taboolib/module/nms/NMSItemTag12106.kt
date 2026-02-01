@@ -56,11 +56,11 @@ class NMSItemTag12106 : NMSItemTag() {
     override fun getItemTag(itemStack: ItemStack, onlyCustom: Boolean): ItemTag {
         val nmsItem = getNMSCopy(itemStack)
         return if (onlyCustom) {
-            val filter = components.filter { nmsItem.get(it) != null }.map { it.toString() to itemTagToBukkitCopy(nmsItem.get(it)!!, true) }
-            ItemTag(filter.associate { it.first to it.second })
+            val tag = nmsItem.get(DataComponents.CUSTOM_DATA)?.copyTag()
+            if (tag != null) itemTagToBukkitCopy(tag).asCompound() else ItemTag()
         } else {
             val tag = nmsItem.toNbt()
-            if (tag != null) itemTagToBukkitCopy(tag).asCompound() else ItemTag12106() // 返回一个特殊的 ItemTag
+            if (tag != null) itemTagToBukkitCopy(tag, true).asCompound() else ItemTag12106() // 返回一个特殊的 ItemTag
         }
     }
 
@@ -220,7 +220,7 @@ class NMSItemTag12106 : NMSItemTag() {
             is Boolean -> ItemTagData(nbtTag)
 
             // 不支持的类型
-            else -> ItemComponent.instance.getTagData(nbtTag) ?: error("Unsupported type: ${nbtTag::class.java}")
+            else -> error("Unsupported type: ${nbtTag::class.java}")
         }
     }
 
