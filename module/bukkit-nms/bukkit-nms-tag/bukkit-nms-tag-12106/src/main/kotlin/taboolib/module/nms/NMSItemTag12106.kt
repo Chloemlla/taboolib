@@ -11,25 +11,12 @@ import net.minecraft.world.item.component.CustomData
 import org.bukkit.craftbukkit.v1_21_R5.CraftRegistry
 import org.bukkit.craftbukkit.v1_21_R5.inventory.CraftItemStack
 import org.bukkit.inventory.ItemStack
-import org.tabooproject.reflex.Reflex.Companion.invokeMethod
-import java.lang.reflect.Modifier
-import java.util.*
 import kotlin.jvm.optionals.getOrNull
 
 /**
  * [NMSItemTag] 的实现类
  */
 class NMSItemTag12106 : NMSItemTag() {
-
-    val components by lazy {
-        try {
-            DataComponents::class.java.declaredFields.filter {
-                Modifier.isStatic(it.modifiers) && it.type == DataComponentType::class.java
-            }.map { it.get(null) as DataComponentType<*> }
-        } catch (_: ClassNotFoundException) {
-            emptyList()
-        }
-    }
 
     override fun newItemTag(): ItemTag {
         return ItemTag12106()
@@ -177,63 +164,42 @@ class NMSItemTag12106 : NMSItemTag() {
         return when (nbtTag) {
             // 基本类型
             is NBTTagByte -> ItemTagData(ItemTagType.BYTE, nbtTag.value)
-            is Byte -> ItemTagData(ItemTagType.BYTE, nbtTag)
-
             is NBTTagShort -> ItemTagData(ItemTagType.SHORT, nbtTag.value)
-            is Short -> ItemTagData(ItemTagType.SHORT, nbtTag)
-
             is NBTTagInt -> ItemTagData(ItemTagType.INT, nbtTag.value)
-            is Int -> ItemTagData(ItemTagType.INT, nbtTag)
-
             is NBTTagLong -> ItemTagData(ItemTagType.LONG, nbtTag.value)
-            is Long -> ItemTagData(ItemTagType.LONG, nbtTag)
-
             is NBTTagFloat -> ItemTagData(ItemTagType.FLOAT, nbtTag.value)
-            is Float -> ItemTagData(ItemTagType.FLOAT, nbtTag)
-
             is NBTTagDouble -> ItemTagData(ItemTagType.DOUBLE, nbtTag.value)
-            is Double -> ItemTagData(ItemTagType.DOUBLE, nbtTag)
-
             is NBTTagString -> ItemTagData(ItemTagType.STRING, nbtTag.value)
 
             // 数组类型特殊处理
             is NBTTagByteArray -> ItemTagData(ItemTagType.BYTE_ARRAY, nbtTag.asByteArray.copyOf())
-            is ByteArray -> ItemTagData(ItemTagType.BYTE_ARRAY, nbtTag)
             is NBTTagIntArray -> ItemTagData(ItemTagType.INT_ARRAY, nbtTag.asIntArray.copyOf())
-            is IntArray -> ItemTagData(ItemTagType.INT_ARRAY, nbtTag)
             is NBTTagLongArray -> ItemTagData(ItemTagType.LONG_ARRAY, nbtTag.asLongArray.copyOf())
-            is LongArray -> ItemTagData(ItemTagType.LONG_ARRAY, nbtTag)
 
             // 列表类型特殊处理
-            is NBTTagList -> ItemTagList(nbtTag.map { itemTagToBukkitCopy(it, onlyCustom) })
-            is List<*> -> ItemTagList(nbtTag.map { itemTagToBukkitCopy(it!!, onlyCustom) })
+            is NBTTagList -> {
+                ItemTagList(nbtTag.map { itemTagToBukkitCopy(it) })
+            }
 
             // 复合类型特殊处理
             is NBTTagCompound -> {
                 // 1.20.5 -> nbtTag.allKeys.xxx
                 // 1.21.5 -> nbtTag.keySet()
-                nbtTag.keySet().associateWith { itemTagToBukkitCopy(nbtTag.get(it)!!, onlyCustom) }.let {
+                nbtTag.keySet().associateWith { itemTagToBukkitCopy(nbtTag.get(it)!!) }.let {
                     if (onlyCustom) ItemTag(it) else ItemTag12106(it)
                 }
             }
 
-            is Boolean -> ItemTagData(nbtTag)
-
             // 不支持的类型
-            else -> error("Unsupported type: ${nbtTag::class.java}")
+            else -> error("Unsupported type: ${nbtTag::class.java}}")
         }
     }
 
     private fun net.minecraft.world.item.ItemStack.toNbt(): NBTBase? {
-        val encode = net.minecraft.world.item.ItemStack.CODEC.encodeStart(
+        return net.minecraft.world.item.ItemStack.CODEC.encodeStart(
             CraftRegistry.getMinecraftRegistry().createSerializationContext(DynamicOpsNBT.INSTANCE),
             this,
-        )
-        return try {
-            encode.result()
-        } catch (_: Error) {
-            encode.invokeMethod<Optional<NBTBase>>("result")
-        }?.getOrNull()
+        ).result().getOrNull()
     }
 
     private fun NBTBase.toItemStack(): ItemStack? {
