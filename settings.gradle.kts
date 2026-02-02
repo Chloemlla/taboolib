@@ -24,11 +24,8 @@ include(
     "module:bukkit-nms:bukkit-nms-legacy",
     "module:bukkit-nms:bukkit-nms-stable",
     "module:bukkit-nms:bukkit-nms-tag",
-    "module:bukkit-nms:bukkit-nms-tag:bukkit-nms-tag-12005",
-    "module:bukkit-nms:bukkit-nms-tag:bukkit-nms-tag-12105",
-    "module:bukkit-nms:bukkit-nms-tag:bukkit-nms-tag-12106",
+    "module:bukkit-nms:bukkit-nms-tag:bukkit-nms-tag-modern",
     "module:bukkit-nms:bukkit-nms-tag:bukkit-nms-tag-legacy",
-    "module:bukkit-nms:bukkit-nms-tag:bukkit-nms-tag-component",
 
     // 针对 Minecraft 的多平台工具
     "module:minecraft:minecraft-chat",

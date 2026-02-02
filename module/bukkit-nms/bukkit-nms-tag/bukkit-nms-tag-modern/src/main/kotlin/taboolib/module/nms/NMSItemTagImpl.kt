@@ -8,28 +8,56 @@ import net.minecraft.nbt.*
 import net.minecraft.resources.MinecraftKey
 import net.minecraft.world.item.AdventureModePredicate
 import net.minecraft.world.item.component.CustomData
-import org.bukkit.craftbukkit.v1_21_R5.CraftRegistry
-import org.bukkit.craftbukkit.v1_21_R5.inventory.CraftItemStack
+import org.bukkit.craftbukkit.v1_21_R3.CraftRegistry
+import org.bukkit.craftbukkit.v1_21_R3.inventory.CraftItemStack
 import org.bukkit.inventory.ItemStack
+import taboolib.module.nms.remap.DynamicOpcode
+import taboolib.module.nms.remap.dynamic
+import java.util.Optional
 import kotlin.jvm.optionals.getOrNull
 
 /**
  * [NMSItemTag] 的实现类
  */
-class NMSItemTag12106 : NMSItemTag() {
+class NMSItemTagImpl : NMSItemTag() {
 
     override fun newItemTag(): ItemTag {
-        return ItemTag12106()
+        return ItemTag12005()
     }
 
     override fun toMinecraftJson(itemStack: ItemStack): String {
-        return getNMSCopy(itemStack).toNbt().toString()
+        if (versionId >= 12106) {
+            return getNMSCopy(itemStack).toNbt().toString()
+        }
+        return getNMSCopy(itemStack).save(CraftRegistry.getMinecraftRegistry()).toString()
     }
 
     override fun fromMinecraftJson(json: String): ItemStack? {
         // 1.20.5 -> MojangsonParser.parseTag(String)
         // 1.21.5 -> MojangsonParser.parseComponentFully(String)
-        return MojangsonParser.parseCompoundFully(json).toItemStack()
+        val compound = if (versionId >= 12105) {
+            dynamic(
+                DynamicOpcode.INVOKESTATIC,
+                "net.minecraft.nbt.MojangsonParser#parseComponentFully(java.lang.String;)net.minecraft.nbt.NBTTagCompound;",
+                json
+            )
+        } else {
+            dynamic(
+                DynamicOpcode.INVOKESTATIC,
+                "net.minecraft.nbt.MojangsonParser#parseTag(java.lang.String;)net.minecraft.nbt.NBTTagCompound;",
+                json
+            )
+        } as NBTTagCompound
+
+        if (versionId >= 12106) {
+            return compound.toItemStack()
+        }
+
+        val nmsItem = net.minecraft.world.item.ItemStack.parse(
+            CraftRegistry.getMinecraftRegistry(),
+            compound
+        ).getOrNull()
+        return if (nmsItem != null) getBukkitCopy(nmsItem) else null
     }
 
     override fun getNMSCopy(itemStack: ItemStack): net.minecraft.world.item.ItemStack {
@@ -46,8 +74,8 @@ class NMSItemTag12106 : NMSItemTag() {
             val tag = nmsItem.get(DataComponents.CUSTOM_DATA)?.copyTag()
             if (tag != null) itemTagToBukkitCopy(tag).asCompound() else ItemTag()
         } else {
-            val tag = nmsItem.toNbt()
-            if (tag != null) itemTagToBukkitCopy(tag, true).asCompound() else ItemTag12106() // 返回一个特殊的 ItemTag
+            val tag = if (versionId >= 12106) nmsItem.toNbt() else nmsItem.save(CraftRegistry.getMinecraftRegistry())
+            if (tag != null) itemTagToBukkitCopy(tag, true).asCompound() else ItemTag12005() // 返回一个特殊的 ItemTag
         }
     }
 
@@ -57,15 +85,22 @@ class NMSItemTag12106 : NMSItemTag() {
             nmsItem.set(DataComponents.CUSTOM_DATA, CustomData.of(itemTagToNMSCopy(itemTag) as NBTTagCompound))
             getBukkitCopy(nmsItem)
         } else {
-            val nmsItem = itemTagToNMSCopy(itemTag).toItemStack()
-            if (nmsItem != null) getBukkitCopy(nmsItem) else itemStack
+            if (versionId >= 12106) {
+                itemTagToNMSCopy(itemTag).toItemStack() ?: itemStack
+            } else {
+                val nmsItem = net.minecraft.world.item.ItemStack.parse(
+                    CraftRegistry.getMinecraftRegistry(),
+                    itemTagToNMSCopy(itemTag)
+                )
+                if (nmsItem.isPresent) getBukkitCopy(nmsItem.get()) else itemStack
+            }
         }
     }
 
     private fun setAdventurePredicate(
         itemStack: ItemStack,
         blocks: List<String>,
-        componentType: DataComponentType<AdventureModePredicate>
+        componentType: DataComponentType<AdventureModePredicate>,
     ): ItemStack {
         val nmsItem = getNMSCopy(itemStack)
         val predicates = blocks.mapNotNull { blockName ->
@@ -77,7 +112,11 @@ class NMSItemTag12106 : NMSItemTag() {
                     .build()
             }
         }
-        val predicate = AdventureModePredicate(predicates)
+        val predicate = if (versionId >= 12105) {
+            dynamic(DynamicOpcode.INVOKESPECIAL, "net.minecraft.world.item.AdventureModePredicate(java.util.List;)V", predicates)
+        } else {
+            dynamic(DynamicOpcode.INVOKESPECIAL, "net.minecraft.world.item.AdventureModePredicate(java.util.List;Z)V", predicates, true)
+        } as AdventureModePredicate
         nmsItem.set(componentType, predicate)
         return getBukkitCopy(nmsItem)
     }
@@ -88,10 +127,6 @@ class NMSItemTag12106 : NMSItemTag() {
 
     override fun setItemCanPlaceOn(itemStack: ItemStack, blocks: List<String>): ItemStack {
         return setAdventurePredicate(itemStack, blocks, DataComponents.CAN_PLACE_ON)
-    }
-
-    override fun itemTagToString(itemTagData: ItemTagData): String {
-        return itemTagToNMSCopy(itemTagData).toString()
     }
 
     override fun hasItemCanBreak(itemStack: ItemStack): Boolean {
@@ -114,6 +149,10 @@ class NMSItemTag12106 : NMSItemTag() {
         val nmsItem = getNMSCopy(itemStack)
         nmsItem.remove(DataComponents.CAN_PLACE_ON)
         return getBukkitCopy(nmsItem)
+    }
+
+    override fun itemTagToString(itemTagData: ItemTagData): String {
+        return itemTagToNMSCopy(itemTagData).toString()
     }
 
     override fun itemTagToNMSCopy(itemTagData: ItemTagData): NBTBase {
@@ -163,13 +202,47 @@ class NMSItemTag12106 : NMSItemTag() {
     private fun itemTagToBukkitCopy(nbtTag: Any, onlyCustom: Boolean): ItemTagData {
         return when (nbtTag) {
             // 基本类型
-            is NBTTagByte -> ItemTagData(ItemTagType.BYTE, nbtTag.value)
-            is NBTTagShort -> ItemTagData(ItemTagType.SHORT, nbtTag.value)
-            is NBTTagInt -> ItemTagData(ItemTagType.INT, nbtTag.value)
-            is NBTTagLong -> ItemTagData(ItemTagType.LONG, nbtTag.value)
-            is NBTTagFloat -> ItemTagData(ItemTagType.FLOAT, nbtTag.value)
-            is NBTTagDouble -> ItemTagData(ItemTagType.DOUBLE, nbtTag.value)
-            is NBTTagString -> ItemTagData(ItemTagType.STRING, nbtTag.value)
+            is NBTTagByte -> ItemTagData(
+                ItemTagType.BYTE,
+                (if (versionId >= 12105) dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagByte#value()B", nbtTag)
+                else dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagByte#getAsByte()B", nbtTag)) as Byte
+            )
+
+            is NBTTagShort -> ItemTagData(
+                ItemTagType.SHORT,
+                (if (versionId >= 12105) dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagShort#value()S", nbtTag)
+                else dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagShort#getAsShort()S", nbtTag)) as Short
+            )
+
+            is NBTTagInt -> ItemTagData(
+                ItemTagType.INT,
+                (if (versionId >= 12105) dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagInt#value()I", nbtTag)
+                else dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagInt#getAsInt()I", nbtTag)) as Int
+            )
+
+            is NBTTagLong -> ItemTagData(
+                ItemTagType.LONG,
+                (if (versionId >= 12105) dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagLong#value()J", nbtTag)
+                else dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagLong#getAsLong()J", nbtTag)) as Long
+            )
+
+            is NBTTagFloat -> ItemTagData(
+                ItemTagType.FLOAT,
+                (if (versionId >= 12105) dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagFloat#value()F", nbtTag)
+                else dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagFloat#getAsFloat()F", nbtTag)) as Float
+            )
+
+            is NBTTagDouble -> ItemTagData(
+                ItemTagType.DOUBLE,
+                (if (versionId >= 12105) dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagDouble#value()D", nbtTag)
+                else dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagDouble#getAsDouble()D", nbtTag)) as Double
+            )
+
+            is NBTTagString -> ItemTagData(
+                ItemTagType.STRING,
+                (if (versionId >= 12105) dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagString#value()java.lang.String;", nbtTag)
+                else dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagString#getAsString()java.lang.String;", nbtTag)) as String,
+            )
 
             // 数组类型特殊处理
             is NBTTagByteArray -> ItemTagData(ItemTagType.BYTE_ARRAY, nbtTag.asByteArray.copyOf())
@@ -185,8 +258,15 @@ class NMSItemTag12106 : NMSItemTag() {
             is NBTTagCompound -> {
                 // 1.20.5 -> nbtTag.allKeys.xxx
                 // 1.21.5 -> nbtTag.keySet()
-                nbtTag.keySet().associateWith { itemTagToBukkitCopy(nbtTag.get(it)!!) }.let {
-                    if (onlyCustom) ItemTag(it) else ItemTag12106(it)
+                @Suppress("unchecked_cast")
+                val keySet = if (versionId >= 12105) {
+                    dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagCompound#keySet()java.util.Set;", nbtTag)
+                } else {
+                    dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.NBTTagCompound#getAllKeys()java.util.Set;", nbtTag)
+                } as Set<String>
+
+                keySet.associateWith { itemTagToBukkitCopy(nbtTag.get(it)!!) }.let {
+                    if (onlyCustom) ItemTag(it) else ItemTag12005(it)
                 }
             }
 
@@ -195,24 +275,41 @@ class NMSItemTag12106 : NMSItemTag() {
         }
     }
 
+    // 12106
     private fun net.minecraft.world.item.ItemStack.toNbt(): NBTBase? {
-        return net.minecraft.world.item.ItemStack.CODEC.encodeStart(
-            CraftRegistry.getMinecraftRegistry().createSerializationContext(DynamicOpsNBT.INSTANCE),
-            this,
-        ).result().getOrNull()
-    }
-
-    private fun NBTBase.toItemStack(): ItemStack? {
-        val result = net.minecraft.world.item.ItemStack.CODEC.parse(
+        // NMSItemStack.CODEC.encodeStart(CraftRegistry.getMinecraftRegistry().createSerializationContext(DynamicOpsNBT.INSTANCE), this).result().getOrNull()
+        // java.lang.IncompatibleClassChangeError: Found interface com.mojang.serialization.DataResult, but class was expected
+        val dataResult = dynamic(
+            DynamicOpcode.INVOKEVIRTUAL,
+            "com.mojang.serialization.Encoder#encodeStart(com.mojang.serialization.DynamicOps;java.lang.Object;)com.mojang.serialization.DataResult;",
+            net.minecraft.world.item.ItemStack.CODEC,
             CraftRegistry.getMinecraftRegistry().createSerializationContext(DynamicOpsNBT.INSTANCE),
             this
         )
+        @Suppress("unchecked_cast")
+        val optional = dynamic(DynamicOpcode.INVOKEVIRTUAL, "com.mojang.serialization.DataResult#result()java.util.Optional;", dataResult) as Optional<NBTBase>
+        return optional.getOrNull()
+    }
 
-        return if (result != null) getBukkitCopy(result) else null
+    // 12106
+    private fun NBTBase.toItemStack(): ItemStack? {
+        // NMSItemStack.CODEC.parse(CraftRegistry.getMinecraftRegistry().createSerializationContext(DynamicOpsNBT.INSTANCE), this)
+        // java.lang.IncompatibleClassChangeError: Found interface com.mojang.serialization.DataResult, but class was expected
+        val dataResult = dynamic(
+            DynamicOpcode.INVOKEVIRTUAL,
+            "com.mojang.serialization.Decoder#parse(com.mojang.serialization.DynamicOps;java.lang.Object;)com.mojang.serialization.DataResult;",
+            net.minecraft.world.item.ItemStack.CODEC,
+            CraftRegistry.getMinecraftRegistry().createSerializationContext(DynamicOpsNBT.INSTANCE),
+            this
+        )
+        @Suppress("unchecked_cast")
+        val optional = dynamic(DynamicOpcode.INVOKEVIRTUAL, "com.mojang.serialization.DataResult#result()java.util.Optional;", dataResult) as Optional<net.minecraft.world.item.ItemStack>
+        val nmsItem = optional.getOrNull()
+        return if (nmsItem != null) getBukkitCopy(nmsItem) else null
     }
 }
 
-class ItemTag12106 : ItemTag {
+class ItemTag12005 : ItemTag {
 
     constructor() : super()
     constructor(map: Map<String, ItemTagData>) : super(map)
