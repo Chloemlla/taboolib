@@ -72,10 +72,10 @@ class NMSItemTagImpl : NMSItemTag() {
         val nmsItem = getNMSCopy(itemStack)
         return if (onlyCustom) {
             val tag = nmsItem.get(DataComponents.CUSTOM_DATA)?.copyTag()
-            if (tag != null) itemTagToBukkitCopy(tag).asCompound() else ItemTag()
+            if (tag != null) itemTagToBukkitCopy(tag, true).asCompound() else ItemTag()
         } else {
             val tag = if (versionId >= 12106) nmsItem.toNbt() else nmsItem.save(CraftRegistry.getMinecraftRegistry())
-            if (tag != null) itemTagToBukkitCopy(tag, true).asCompound() else ItemTag12005() // 返回一个特殊的 ItemTag
+            if (tag != null) itemTagToBukkitCopy(tag, false).asCompound() else ItemTag12005() // 返回一个特殊的 ItemTag
         }
     }
 
