@@ -14,7 +14,7 @@ import java.lang.reflect.Method;
  * @since 2024/7/20 16:07
  */
 @SuppressWarnings("ALL")
-public class LightReflection {
+public class MeteorReflection {
 
     private static final String PAPER_REFLECTION_HOLDER = "io.papermc.paper.pluginremap.reflect.PaperReflectionHolder";
     private static final String PAPER_REFLECTION_REMAPPER = "io.papermc.paper.pluginremap.reflect.ReflectionRemapper";

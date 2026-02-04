@@ -39,13 +39,14 @@ object ProtocolHandler : OpenListener {
     const val PACKET_SEND = "packet_send/v1"
 
     /**
-     * 使用 LightInjector 作为 TabooLib 数据包实现。
-     * 不再对外开放，因为随着版本更新，底层实现可能会变更，在这之前曾使用 TinyProtocol。
+     * 使用 MeteorInjector 作为 TabooLib 数据包实现。
+     * 不再对外开放，因为随着版本更新，底层实现可能会变更，
+     * 在这之前曾使用 TinyProtocol 和 LightInjector。
      *
      * 这类工具现均已停止维护，可能因服务端改动频繁维护成本极高。
      * 未来可能会选择使用 retrooper/packetevents，但它是个巨无霸。
      */
-    var instance: LightInjector? = null
+    var instance: MeteorInjector? = null
 
     /**
      * 当前插件是否已经注入数据包监听器
@@ -107,15 +108,15 @@ object ProtocolHandler : OpenListener {
      * 并且更新 OpenContainer 缓存
      */
     private fun injectPacketListener() {
-        instance = LightInjectorImpl(BukkitPlugin.getInstance())
+        instance = MeteorInjector(BukkitPlugin.getInstance())
         Exchanges[PACKET_LISTENER] = pluginId
         Exchanges["$PACKET_LISTENER/plugin/$pluginId"] = null
         updateContainer()
-        debug("LightInjector 初始化完成。")
+        debug("MeteorInjector 初始化完成。")
     }
 
     /**
-     * 初始化 LightInjector
+     * 初始化 MeteorInjector
      */
     @Awake(LifeCycle.ENABLE)
     private fun onEnable() {
@@ -129,7 +130,7 @@ object ProtocolHandler : OpenListener {
             // 只有在 Exchanges 中标记本插件，才会收到共享的数据包事件
             if (isPacketEventListened()) {
                 Exchanges["$PACKET_LISTENER/plugin/$pluginId"] = true
-                debug("LightInjector 已在其他插件中初始化。")
+                debug("MeteorInjector 已在其他插件中初始化。")
             }
         } else {
             injectPacketListener()
@@ -137,7 +138,7 @@ object ProtocolHandler : OpenListener {
     }
 
     /**
-     * 卸载 LightInjector，需要其他插件立刻顶替
+     * 卸载 MeteorInjector，需要其他插件立刻顶替
      */
     @Awake(LifeCycle.DISABLE)
     private fun onDisable() {
@@ -152,7 +153,7 @@ object ProtocolHandler : OpenListener {
             if (next != null) {
                 try {
                     if (next.call(PACKET_LISTENER_EJECT, arrayOf()).isSuccessful) {
-                        debug("LightInjector closed, current packet listener is taken over by ${next.name}.")
+                        debug("MeteorInjector closed, current packet listener is taken over by ${next.name}.")
                     }
                 } catch (ex: IllegalStateException) {
                     if (ex.message != "zip file closed") ex.printStackTrace()
