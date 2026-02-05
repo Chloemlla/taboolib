@@ -39,7 +39,7 @@ public class MeteorInjector implements Closeable {
     private static final Field NMS_SERVER = getField(getCBClass("CraftServer"), SERVER_CLASS, 1);
     private static final Field NMS_SERVER_CONNECTION = getField(SERVER_CLASS, SERVER_CONNECTION_CLASS, 1);
     private static final Field GAME_PROFILE_FROM_PACKET = getField(PACKET_LOGIN_OUT_SUCCESS_CLASS, GameProfile.class, 1);
-    private static final Field NMS_NETWORK_MANAGERS_LIST = getField(SERVER_CONNECTION_CLASS, List.class, 1);
+    private static final Field CHANNELS_LIST = getField(SERVER_CONNECTION_CLASS, List.class, 1);
 
     private static final Method GAME_PROFILE_ID = getMethod(GameProfile.class, MinecraftVersion.INSTANCE.getVersionId() > 12108 ? "id" : "getId");
 
@@ -73,7 +73,7 @@ public class MeteorInjector implements Closeable {
         Object conn;
         try {
             conn = NMS_SERVER_CONNECTION.get(NMS_SERVER.get(Bukkit.getServer()));
-            channels = (List<ChannelFuture>) NMS_NETWORK_MANAGERS_LIST.get(conn);
+            channels = (List<ChannelFuture>) CHANNELS_LIST.get(conn);
         } catch (ReflectiveOperationException exception) {
             throw new RuntimeException("[MeteorInjector] An error occurred while injecting.", exception);
         }
