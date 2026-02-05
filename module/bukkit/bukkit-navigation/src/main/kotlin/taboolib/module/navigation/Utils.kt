@@ -111,3 +111,28 @@ fun Material.isAirLegacy(): Boolean {
 fun Material.isWater(): Boolean {
     return name.contains("WATER")
 }
+
+fun Block.isTrapdoorOpen(): Boolean {
+    return if (MinecraftVersion.isHigherOrEqual(MinecraftVersion.V1_13)) {
+        (blockData as org.bukkit.block.data.type.TrapDoor).isOpen
+    } else {
+        NMS.instance.isTrapdoorOpen(this)
+    }
+}
+
+fun Block.isCampfireLit(): Boolean {
+    return if (MinecraftVersion.isHigherOrEqual(MinecraftVersion.V1_14)) {
+        (blockData as org.bukkit.block.data.type.Campfire).isLit
+    } else {
+        true
+    }
+}
+
+fun Block.isBottomSlab(): Boolean {
+    return if (MinecraftVersion.isHigherOrEqual(MinecraftVersion.V1_13)) {
+        val slab = blockData as org.bukkit.block.data.type.Slab
+        slab.type == org.bukkit.block.data.type.Slab.Type.BOTTOM
+    } else {
+        NMS.instance.isBottomSlab(this)
+    }
+}

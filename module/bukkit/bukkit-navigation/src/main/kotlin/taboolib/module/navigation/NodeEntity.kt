@@ -26,6 +26,9 @@ open class NodeEntity(
     var restrictCenter: Vector = Vector(0, 0, 0),
     var restrictRadius: Float = -1f,
 ) {
+
+    val neighborCheck: Boolean = false
+
     val hasRestriction: Boolean
         get() = restrictRadius != -1.0f
 

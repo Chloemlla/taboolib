@@ -21,6 +21,10 @@ abstract class NMS {
 
     abstract fun isDoorOpened(block: Block): Boolean
 
+    abstract fun isTrapdoorOpen(block: Block): Boolean
+
+    abstract fun isBottomSlab(block: Block): Boolean
+
     companion object {
 
         var instance = nmsProxy(NMS::class.java)

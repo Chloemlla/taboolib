@@ -2,8 +2,8 @@ package taboolib.module.navigation
 
 import org.bukkit.Material
 import org.bukkit.World
-import org.bukkit.block.Block
 import org.bukkit.util.Vector
+import taboolib.module.navigation.handlers.*
 import java.util.*
 import kotlin.math.ceil
 
@@ -25,18 +25,9 @@ open class PathTypeFactory(val entity: NodeEntity) {
      */
     open fun evaluateType(pathType: PathType): PathType {
         return when {
-            pathType == PathType.DOOR_WOOD_CLOSED && entity.canOpenDoors && entity.canPassDoors -> {
-                PathType.WALKABLE_DOOR
-            }
-
-            pathType == PathType.DOOR_OPEN && !entity.canPassDoors -> {
-                PathType.BLOCKED
-            }
-
-            pathType == PathType.LEAVES -> {
-                PathType.BLOCKED
-            }
-
+            pathType == PathType.DOOR_WOOD_CLOSED && entity.canOpenDoors && entity.canPassDoors -> PathType.WALKABLE_DOOR
+            pathType == PathType.DOOR_OPEN && !entity.canPassDoors -> PathType.BLOCKED
+            pathType == PathType.LEAVES -> PathType.BLOCKED
             else -> pathType
         }
     }
@@ -110,19 +101,14 @@ open class PathTypeFactory(val entity: NodeEntity) {
      * 那么该方块也会被视为危险类型
      */
     open fun getTypeAsWalkable(world: World, position: Vector): PathType {
-        // 获取原始类型
         var rawType = getRawType(world, position)
-        // 当方块可以通过且高度 > 1
         if (rawType == PathType.OPEN) {
-            // 获取下方方块
             val down = getRawType(world, position.down())
-            // 对下方方块进行一个初步的判断
-            if (down != PathType.WALKABLE && down != PathType.OPEN && down != PathType.WATER && down != PathType.LAVA) {
-                // WALKABLE 类型的唯一来源，代表方块绝对可站立，但危险等级不知。
+            // 下方是实体方块或可站立方块时，当前位置可站立
+            if (down != PathType.OPEN && down != PathType.WATER && down != PathType.LAVA) {
                 rawType = PathType.WALKABLE
-            } else {
-                rawType = PathType.OPEN
             }
+            // 继承下方危险类型
             rawType = when (down) {
                 PathType.DAMAGE_FIRE -> PathType.DAMAGE_FIRE
                 PathType.DAMAGE_CACTUS -> PathType.DAMAGE_CACTUS
@@ -131,8 +117,7 @@ open class PathTypeFactory(val entity: NodeEntity) {
                 else -> rawType
             }
         }
-        if (rawType == PathType.WALKABLE) {
-            // 临近的危险方块将会代替自身返回
+        if (rawType == PathType.WALKABLE && entity.neighborCheck) {
             rawType = getTypeAsNeighbor(world, position, rawType)
         }
         return rawType
@@ -140,87 +125,63 @@ open class PathTypeFactory(val entity: NodeEntity) {
 
     companion object {
 
-        /** 材质 → PathType 静态缓存 */
-        val materialTypes: EnumMap<Material, PathType> = EnumMap(Material::class.java)
-
         /** 邻居危险检测用缓存 */
         val dangerMaterials: EnumMap<Material, PathType> = EnumMap(Material::class.java)
 
-        /** 需要运行时检查方块状态的材质（门、栅栏门） */
-        val needsStateCheck: HashSet<Material> = hashSetOf()
+        /** 处理器列表 */
+        val handlers = mutableListOf<BlockTypeHandler>()
+
+        /** Material → Handler 缓存 */
+        val handlerCache = EnumMap<Material, BlockTypeHandler>(Material::class.java)
+
+        fun registerHandler(handler: BlockTypeHandler) {
+            handlers.add(handler)
+            handlers.sortByDescending { it.priority }
+            handlerCache.clear()
+        }
+
+        fun unregisterHandler(handler: BlockTypeHandler) {
+            handlers.remove(handler)
+            handlerCache.clear()
+        }
+
+        fun getHandler(material: Material): BlockTypeHandler {
+            handlerCache[material]?.let { return it }
+            for (handler in handlers) {
+                if (handler.canHandle(material)) {
+                    handlerCache[material] = handler
+                    return handler
+                }
+            }
+            error("No handler for $material")
+        }
 
         init {
+            // 邻居危险检测缓存
             for (mat in Material.values()) {
-                val name = mat.name
-                // 门和栅栏门需要运行时状态检查
-                if (name.endsWith("DOOR") || name.endsWith("DOOR_BLOCK") || (name.endsWith("FENCE_GATE"))) {
-                    needsStateCheck.add(mat)
-                    continue
-                }
-                val type = classifyMaterial(mat, name)
-                if (type != null) {
-                    materialTypes[mat] = type
-                }
-
-                // 邻居危险检测
-                val danger = classifyDanger(name)
+                val danger = classifyDanger(mat.name)
                 if (danger != null) {
                     dangerMaterials[mat] = danger
                 }
             }
-        }
-
-        private fun classifyMaterial(mat: Material, name: String): PathType? {
-            return when {
-                mat.isAirLegacy() -> PathType.OPEN
-                // 水
-                name == "WATER" || name == "FLOWING_WATER" || name == "STATIONARY_WATER" -> PathType.WATER
-                // 岩浆
-                name == "LAVA" || name == "FLOWING_LAVA" || name == "STATIONARY_LAVA" -> PathType.LAVA
-                // 燃烧物
-                name == "FIRE" || name == "MAGMA_BLOCK" || name == "CAMPFIRE" || name == "SOUL_CAMPFIRE" -> PathType.DAMAGE_FIRE
-                // 仙人掌
-                name == "CACTUS" -> PathType.DAMAGE_CACTUS
-                // 浆果丛
-                name == "SWEET_BERRY_BUSH" -> PathType.DAMAGE_OTHER
-                // 蜂蜜块
-                name == "HONEY_BLOCK" -> PathType.STICKY_HONEY
-                // 可可豆
-                name.endsWith("COCOA") -> PathType.COCOA
-                // 树叶
-                name.endsWith("LEAVES") || name.endsWith("LEAVES_2") -> PathType.LEAVES
-                // 栅栏、石墙（不含栅栏门，已在 needsStateCheck）
-                name.endsWith("FENCE") || name.endsWith("WALL") -> PathType.FENCE
-                // 活板门、睡莲、地毯等可穿过方块
-                name.endsWith("TRAPDOOR") || name.endsWith("TRAP_DOOR")
-                        || name == "LILY_PAD"
-                        || name == "CARPET"
-                        || name.endsWith("SAPLING")
-                        || name == "REDSTONE_WIRE"
-                        || (name.endsWith("GRASS") && !mat.isSolid)
-                        || name == "NETHER_WARTS"
-                        || name == "NETHER_STALK"
-                        || name == "DOUBLE_PLANT"
-                        || name.startsWith("FLOWER_POT")
-                        || name == "RED_ROSE"
-                        || name == "YELLOW_FLOWER"
-                        || name == "BEETROOT_BLOCK"
-                        || name.startsWith("DIODE_BLOCK")
-                        || name == "SUGAR_CANE_BLOCK" -> PathType.OPEN
-                // 实体方块
-                mat.isSolid -> PathType.BLOCKED
-                // 其余
-                else -> PathType.OPEN
-            }
+            // 注册内置处理器
+            registerHandler(TrapdoorHandler())
+            registerHandler(DoorHandler())
+            registerHandler(FenceGateHandler())
+            registerHandler(CampfireHandler())
+            registerHandler(SlabHandler())
+            registerHandler(StairsHandler())
+            registerHandler(LilyPadHandler())
+            registerHandler(DefaultHandler())
         }
 
         private fun classifyDanger(name: String): PathType? {
-            return when {
-                name == "CACTUS" -> PathType.DANGER_CACTUS
-                name == "SWEET_BERRY_BUSH" -> PathType.DANGER_OTHER
-                name == "FIRE" || name == "MAGMA_BLOCK" || name == "CAMPFIRE" || name == "SOUL_CAMPFIRE"
-                        || name == "LAVA" || name == "FLOWING_LAVA" || name == "STATIONARY_LAVA" -> PathType.DANGER_FIRE
-                name == "WATER" || name == "FLOWING_WATER" || name == "STATIONARY_WATER" -> PathType.WATER_BORDER
+            return when (name) {
+                "CACTUS" -> PathType.DANGER_CACTUS
+                "SWEET_BERRY_BUSH" -> PathType.DANGER_OTHER
+                "FIRE", "MAGMA_BLOCK",
+                "LAVA", "FLOWING_LAVA", "STATIONARY_LAVA" -> PathType.DANGER_FIRE
+                "WATER", "FLOWING_WATER", "STATIONARY_WATER" -> PathType.WATER_BORDER
                 else -> null
             }
         }
@@ -250,35 +211,10 @@ open class PathTypeFactory(val entity: NodeEntity) {
 
         /**
          * 获取单个方块的原始类型
-         * 不对其临近方块进行判断
          */
         fun getRawType(world: World, position: Vector): PathType {
             val block = world.getBlockAtIfLoaded(position) ?: return PathType.BLOCKED
-            val material = block.type
-            // 快速路径：查缓存
-            materialTypes[material]?.also { return it }
-            // 慢速路径：需要方块状态的材质（门、栅栏门）
-            if (material in needsStateCheck) {
-                return getStateBasedType(block)
-            }
-            return PathType.OPEN
-        }
-
-        private fun getStateBasedType(block: Block): PathType {
-            val name = block.type.name
-            // 打开的栅栏门视为可通过
-            if (name.endsWith("FENCE_GATE")) {
-                return if (block.isOpened()) PathType.OPEN else PathType.FENCE
-            }
-            // 铁门
-            if (block.isIronDoor()) {
-                return if (block.isOpened()) PathType.DOOR_OPEN else PathType.DOOR_IRON_CLOSED
-            }
-            // 木门
-            if (block.isDoor()) {
-                return if (block.isOpened()) PathType.DOOR_OPEN else PathType.DOOR_WOOD_CLOSED
-            }
-            return PathType.OPEN
+            return getHandler(block.type).getPathType(block)
         }
     }
 }

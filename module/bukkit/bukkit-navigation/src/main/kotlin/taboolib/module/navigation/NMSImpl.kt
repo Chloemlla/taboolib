@@ -2,6 +2,7 @@ package taboolib.module.navigation
 
 import net.minecraft.server.v1_12_R1.BlockDoor
 import net.minecraft.server.v1_12_R1.BlockPosition
+import net.minecraft.server.v1_12_R1.BlockTrapdoor
 import net.minecraft.world.level.block.state.IBlockData
 import org.bukkit.block.Block
 import org.bukkit.craftbukkit.v1_12_R1.CraftWorld
@@ -119,5 +120,15 @@ class NMSImpl : NMS() {
                 (block.world as CraftWorld).handle.getType(BlockPosition(block.x, block.y, block.z)).get(BlockDoor.OPEN)
             }
         }
+    }
+
+    override fun isTrapdoorOpen(block: Block): Boolean {
+        return (block.world as CraftWorld).handle.getType(BlockPosition(block.x, block.y, block.z)).get(BlockTrapdoor.OPEN)
+    }
+
+    @Suppress("DEPRECATION")
+    override fun isBottomSlab(block: Block): Boolean {
+        // 1.12 及以下，台阶的 data 值：0-7 下半砖，8-15 上半砖
+        return block.data.toInt() and 8 == 0
     }
 }
