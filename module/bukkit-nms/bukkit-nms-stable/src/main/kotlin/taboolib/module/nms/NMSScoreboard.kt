@@ -26,6 +26,7 @@ import taboolib.common.platform.Ghost
 import taboolib.common.platform.event.EventPriority
 import taboolib.common.platform.event.SubscribeEvent
 import taboolib.common.util.t
+import taboolib.module.nms.remap.require
 import taboolib.module.nms.type.ChatColorFormat
 import taboolib.module.nms.type.PlayerScoreboard
 import taboolib.platform.util.*
@@ -445,12 +446,12 @@ class NMSScoreboardImpl : NMSScoreboard() {
 
     private fun component(text: String): Any {
         return if (text.startsWith("{") && text.endsWith("}")) {
-            if (taboolib.module.nms.remap.require(net.minecraft.server.v1_16_R3.IChatBaseComponent.ChatSerializer::class.java)) {
+            if (require(net.minecraft.server.v1_16_R3.IChatBaseComponent.ChatSerializer::class.java)) {
                 listOf(
                     { net.minecraft.server.v1_16_R3.IChatBaseComponent.ChatSerializer::class.java.invokeMethod<Any>("fromJson", text, isStatic = true)!! },
                     { net.minecraft.server.v1_16_R3.IChatBaseComponent.ChatSerializer.b(text)!! },
                     { IChatBaseComponent.ChatSerializer.fromJson(text, IRegistryCustom.EMPTY)!! }
-                ).firstNotNullOf { runCatching(it).getOrNull() }
+                ).firstNotNullOf { runCatching(it).getOrNull() as? IChatBaseComponent }
             } else {
                 org.bukkit.craftbukkit.v1_21_R3.util.CraftChatMessage.fromJSON(text)
             }
