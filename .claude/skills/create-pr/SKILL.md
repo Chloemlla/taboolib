@@ -61,6 +61,6 @@ git checkout -b feat/{keyword}-{issue_number}
 ## 注意事项
 
 1. Issue 必须创建在主仓库 `TabooLib/taboolib`，不是个人 fork
-2. 分支基于当前所在分支创建（通常是 `dev/6.2.0`）
+2. 分支基于当前所在分支创建（通过 Git 获取当前所在分支）
 3. 分支名只使用小写英文字母、数字和连字符
 4. 进入规划模式后，充分分析代码库再制定方案

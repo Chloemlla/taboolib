@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-TabooLib 是 Minecraft（Java 版）跨平台插件开发框架，基于 Kotlin 构建，支持 Bukkit、BungeeCord、Velocity、AfyBroker 等平台。当前版本 6.2.2，分支 `dev/6.2.0`。
+TabooLib 是 Minecraft（Java 版）跨平台插件开发框架，基于 Kotlin 构建，支持 Bukkit、BungeeCord、Velocity、AfyBroker 等平台。当前版本 6.2.3，分支 `dev/6.2.3`。
 
 ## 构建命令
 
