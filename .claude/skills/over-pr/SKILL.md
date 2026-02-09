@@ -13,8 +13,9 @@ user_invocable: true
 ### 第一步：检查状态
 
 ```bash
+BASE_BRANCH=$(gh repo view TabooLib/taboolib --json defaultBranchRef -q '.defaultBranchRef.name')
 git status
-git log --oneline dev/6.2.0..HEAD
+git log --oneline ${BASE_BRANCH}..HEAD
 ```
 
 确认：
@@ -37,8 +38,9 @@ git push -u origin {当前分支名}
 使用 `gh` 向主仓库 `TabooLib/taboolib` 提交 PR：
 
 ```bash
+BASE_BRANCH=$(gh repo view TabooLib/taboolib --json defaultBranchRef -q '.defaultBranchRef.name')
 gh pr create --repo TabooLib/taboolib \
-  --base dev/6.2.0 \
+  --base ${BASE_BRANCH} \
   --head FxRayHughes:{当前分支名} \
   --title "{PR标题}" \
   --body "$(cat <<'EOF'
@@ -69,7 +71,7 @@ Issue 编号从当前分支名中提取（分支名末尾的数字）。
 
 ## 注意事项
 
-1. PR 的 `--base` 是主仓库的目标分支（通常 `dev/6.2.0`）
+1. PR 的 `--base` 是主仓库的目标分支（通过 `gh` 动态获取主仓库默认分支）
 2. PR 的 `--head` 必须带上个人用户名前缀 `FxRayHughes:` (需要使用gh进行获取)
 3. 如果工作区不干净，不要强行推送，提醒用户先处理
 4. 从分支名提取 Issue 编号（如 `feat/xxx-542` → `542`）
