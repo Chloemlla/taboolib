@@ -151,6 +151,26 @@ class PersistentContainer {
     }
 
     /**
+     * 创建 DataMapper（用于已有容器场景）
+     *
+     * @param cache 可选的 L2 双层缓存
+     */
+    inline fun <reified T> mapper(cache: L2Cache? = null): DataMapper<T> {
+        return DataMapperImpl(T::class.java, this, cache)
+    }
+
+    /**
+     * 创建 DataMapper，使用自定义 DataCache 实现
+     *
+     * 传入的 DataCache 同时用于 Bean Cache 和 Query Cache。
+     *
+     * @param cache 自定义缓存实现（如 Redis、Caffeine 等）
+     */
+    inline fun <reified T> mapper(cache: DataCache): DataMapper<T> {
+        return DataMapperImpl(T::class.java, this, L2Cache(cache, cache))
+    }
+
+    /**
      * 关闭容器
      */
     fun close() {

@@ -29,7 +29,39 @@ class ContainerSQL(
                 add { id() }
             }
             type.members.forEach { member ->
+                // @LinkTable 成员：创建外键列而非展开关联类
+                if (member.isLinkTable) {
+                    val linkedClass = AnalyzedClass.of(member.linkTableClass!!)
+                    val linkedPrimary = linkedClass.primaryMember!!
+                    val fkColumnName = member.linkTableColumn!!
+                    add(fkColumnName) {
+                        when {
+                            linkedPrimary.hasColumnType -> {
+                                val colType = linkedPrimary.columnTypeSQL!!
+                                if (colType.isRequired) type(colType, linkedPrimary.length) else type(colType)
+                            }
+                            linkedPrimary.isIndexedEnum -> type(ColumnTypeSQL.BIGINT)
+                            linkedPrimary.isString || linkedPrimary.isEnum -> {
+                                if (linkedPrimary.length < 0) type(ColumnTypeSQL.LONGTEXT)
+                                else type(ColumnTypeSQL.VARCHAR, linkedPrimary.length)
+                            }
+                            linkedPrimary.isUUID -> type(ColumnTypeSQL.CHAR, 36)
+                            else -> type(linkedPrimary.type())
+                        }
+                    }
+                    return@forEach
+                }
                 when {
+                    // 自定义列类型
+                    member.hasColumnType -> add(member.name) {
+                        val colType = member.columnTypeSQL!!
+                        if (colType.isRequired) type(colType, member.length) { options(member) }
+                        else type(colType) { options(member) }
+                    }
+                    // IndexedEnum（数值存储）
+                    member.isIndexedEnum -> add(member.name) {
+                        type(ColumnTypeSQL.BIGINT) { options(member) }
+                    }
                     // 字符串
                     member.isString || member.isEnum -> add(member.name) {
                         // length == -1 时使用longtext

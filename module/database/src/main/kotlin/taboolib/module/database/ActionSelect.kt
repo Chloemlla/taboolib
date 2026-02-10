@@ -150,6 +150,13 @@ class ActionSelect(val table: String) : ActionFilterable() {
     }
 
     /**
+     * 内连接（带子查询参数）
+     */
+    fun innerJoin(table: String, params: List<Any>, func: JoinFilter.() -> Unit) {
+        join += Join(JoinType.INNER, table, JoinFilter().also(func), params)
+    }
+
+    /**
      * 左连接（左表的每一行都会加上右表中符合条件的行）
      */
     fun leftJoin(table: String, func: JoinFilter.() -> Unit) {
@@ -157,9 +164,23 @@ class ActionSelect(val table: String) : ActionFilterable() {
     }
 
     /**
+     * 左连接（带子查询参数）
+     */
+    fun leftJoin(table: String, params: List<Any>, func: JoinFilter.() -> Unit) {
+        join += Join(JoinType.LEFT, table, JoinFilter().also(func), params)
+    }
+
+    /**
      * 右连接（右表的每一行都会加上左表中符合条件的行）
      */
     fun rightJoin(table: String, func: JoinFilter.() -> Unit) {
         join += Join(JoinType.RIGHT, table, JoinFilter().also(func))
+    }
+
+    /**
+     * 右连接（带子查询参数）
+     */
+    fun rightJoin(table: String, params: List<Any>, func: JoinFilter.() -> Unit) {
+        join += Join(JoinType.RIGHT, table, JoinFilter().also(func), params)
     }
 }

@@ -1,6 +1,8 @@
 package taboolib.expansion
 
 import taboolib.common.reflect.getAnnotationIfPresent
+import taboolib.module.database.ColumnTypeSQL
+import taboolib.module.database.ColumnTypeSQLite
 import java.lang.reflect.Parameter
 
 /**
@@ -35,6 +37,24 @@ class AnalyzedClassMember(private val root: Parameter, name: String, val isFinal
 
     /** 长度 */
     val length = root.findAnnotation<Length>()?.value ?: 64
+
+    /** 自定义 SQL 列类型 */
+    val columnTypeSQL: ColumnTypeSQL? = root.findAnnotation<ColumnType>()?.sql
+
+    /** 自定义 SQLite 列类型 */
+    val columnTypeSQLite: ColumnTypeSQLite? = root.findAnnotation<ColumnType>()?.sqlite
+
+    /** 是否指定了自定义列类型 */
+    val hasColumnType: Boolean = root.findAnnotation<ColumnType>() != null
+
+    /** 是否为关联表引用 */
+    val isLinkTable: Boolean = root.findAnnotation<LinkTable>() != null
+
+    /** 关联表外键列名（下划线命名） */
+    val linkTableColumn: String? = root.findAnnotation<LinkTable>()?.value?.toColumnName()
+
+    /** 关联的 data class 类型 */
+    val linkTableClass: Class<*>? = if (isLinkTable) returnType else null
 
     /** 是否为基础类型（Boolean） */
     val isBoolean: Boolean
@@ -84,13 +104,17 @@ class AnalyzedClassMember(private val root: Parameter, name: String, val isFinal
     val isEnum: Boolean
         get() = Enum::class.java.isAssignableFrom(returnType)
 
+    /** 是否为实现了 [IndexedEnum] 接口的枚举（数据库中以数值存储） */
+    val isIndexedEnum: Boolean
+        get() = isEnum && IndexedEnum::class.java.isAssignableFrom(returnType)
+
     /** 是否为自定义对象 */
     val isCustomObject: Boolean
-        get() = !isBoolean && !isByte && !isShort && !isInt && !isLong && !isFloat && !isDouble && !isChar && !isString && !isEnum && !isUUID && !isByteArray
+        get() = !isLinkTable && !isBoolean && !isByte && !isShort && !isInt && !isLong && !isFloat && !isDouble && !isChar && !isString && !isEnum && !isUUID && !isByteArray
 
     /** 是否可以转换成字符串类型 */
     fun canConvertedString(): Boolean {
-        return isString || isEnum || isUUID
+        return isString || (isEnum && !isIndexedEnum) || isUUID
     }
 
     /** 是否可以转化为数字类型 */
@@ -100,7 +124,7 @@ class AnalyzedClassMember(private val root: Parameter, name: String, val isFinal
 
     /** 是否可以转化为整数类型 */
     fun canConvertedInteger(): Boolean {
-        return isBoolean || isByte || isShort || isInt || isLong || isChar
+        return isBoolean || isByte || isShort || isInt || isLong || isChar || isIndexedEnum
     }
 
     /** 是否可以转化为小数类型 */
