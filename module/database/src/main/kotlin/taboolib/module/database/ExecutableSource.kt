@@ -29,46 +29,73 @@ open class ExecutableSource(val table: Table<*, *>, var dataSource: DataSource, 
         }
     }
 
+    /** 设置标识符引用方言 */
+    private fun setupQuoter() {
+        setupQuoterForHost(table.host)
+    }
+
     /** 创建表 */
     open fun createTable(checkExists: Boolean = true) {
+        setupQuoter()
         if (table.name.isBlank()) error("Table name is blank")
         executeUpdate(table.generateCreateQuery(checkExists))
+        // PostgreSQL：为标记了 KEY/UNIQUE 的列创建独立索引
+        if (table.host is HostPostgreSQL) {
+            table.columns.filterIsInstance<ColumnPostgreSQL>().forEach { col ->
+                if (col.options.contains(ColumnOptionPostgreSQL.KEY)) {
+                    val indexName = "idx_${table.name}_${col.name}"
+                    val sql = "CREATE INDEX IF NOT EXISTS ${indexName.asFormattedColumnName()} ON ${table.name.asFormattedColumnName()} (${col.name.asFormattedColumnName()})"
+                    executeUpdate(sql)
+                }
+                if (col.options.contains(ColumnOptionPostgreSQL.UNIQUE)) {
+                    val indexName = "uk_${table.name}_${col.name}"
+                    val sql = "CREATE UNIQUE INDEX IF NOT EXISTS ${indexName.asFormattedColumnName()} ON ${table.name.asFormattedColumnName()} (${col.name.asFormattedColumnName()})"
+                    executeUpdate(sql)
+                }
+            }
+        }
         // 创建表的同时创建索引
         table.indices.forEach { createIndex(it) }
     }
 
     /** 创建索引 */
     open fun createIndex(index: Index) {
+        setupQuoter()
         if (table.name.isBlank()) error("Table name is blank")
         table.generateCreateIndexQuery(index)?.also { executeUpdate(it) }
     }
 
     /** 查询数据 */
     open fun select(func: ActionSelect.() -> Unit): ResultProcessor {
+        setupQuoter()
         val action = ActionSelect(table.name).also(func)
         return executeQuery(action.query, action)
     }
 
     /** 更新数据 */
     open fun update(func: ActionUpdate.() -> Unit = {}): ResultProcessor {
+        setupQuoter()
         val action = ActionUpdate(table.name).also(func)
         return executeUpdate(action.query, action)
     }
 
     /** 删除数据 */
     open fun delete(func: ActionDelete.() -> Unit = {}): ResultProcessor {
+        setupQuoter()
         val action = ActionDelete(table.name).also(func)
         return executeUpdate(action.query, action)
     }
 
     /** 插入数据 */
     open fun insert(vararg keys: String, func: ActionInsert.() -> Unit = {}): ResultProcessor {
+        setupQuoter()
         val action = ActionInsert(table.name, arrayOf(*keys)).also(func)
         return executeUpdate(action.query, action)
     }
 
     /** 插入数据 */
     open fun insert(keys: List<String>, func: ActionInsert.() -> Unit = {}): ResultProcessor {
+        setupQuoter()
         val action = ActionInsert(table.name, keys.toTypedArray()).also(func)
         return executeUpdate(action.query, action)
     }
@@ -165,34 +192,36 @@ open class ExecutableSource(val table: Table<*, *>, var dataSource: DataSource, 
                 addSegment("PRIMARY KEY")
                 addKeys(primaryKeyForLegacy.toTypedArray())
             }
-            // 索引
-            addSegment(columns.asSequence()
-                .filterIsInstance<ColumnSQL>()
-                .filter { it.options.contains(ColumnOptionSQL.KEY) }
-                .groupBy { it.indexType }
-                .map { (key, value) ->
-                    Statement()
-                        .addSegment("KEY `idx_${value.joinToString("_") { it.name }}`")
-                        .addSegment("(${value.joinToString { "${it.name.asFormattedColumnName()} ${if (it.desc) "desc" else ""}".trim() }})")
-                        .addSegmentIfTrue(key != IndexType.DEFAULT) {
-                            addSegment("USING $key")
-                        }.build()
-                }.joinToString()
-            )
-            // 唯一索引
-            addSegment(columns.asSequence()
-                .filterIsInstance<ColumnSQL>()
-                .filter { it.options.contains(ColumnOptionSQL.UNIQUE_KEY) }
-                .groupBy { it.indexType }
-                .map { (key, value) ->
-                    Statement()
-                        .addSegment("UNIQUE `uk_${value.joinToString("_") { it.name }}`")
-                        .addSegment("(${value.joinToString { "${it.name.asFormattedColumnName()} ${if (it.desc) "desc" else ""}".trim() }})")
-                        .addSegmentIfTrue(key != IndexType.DEFAULT) {
-                            addSegment("USING $key")
-                        }.build()
-                }.joinToString()
-            )
+            // 索引（仅 MySQL/SQLite/H2，PostgreSQL 通过 CREATE INDEX 创建）
+            if (host !is HostPostgreSQL) {
+                addSegment(columns.asSequence()
+                    .filterIsInstance<ColumnSQL>()
+                    .filter { it.options.contains(ColumnOptionSQL.KEY) }
+                    .groupBy { it.indexType }
+                    .map { (key, value) ->
+                        Statement()
+                            .addSegment("KEY `idx_${value.joinToString("_") { it.name }}`")
+                            .addSegment("(${value.joinToString { "${it.name.asFormattedColumnName()} ${if (it.desc) "desc" else ""}".trim() }})")
+                            .addSegmentIfTrue(key != IndexType.DEFAULT) {
+                                addSegment("USING $key")
+                            }.build()
+                    }.joinToString()
+                )
+                // 唯一索引
+                addSegment(columns.asSequence()
+                    .filterIsInstance<ColumnSQL>()
+                    .filter { it.options.contains(ColumnOptionSQL.UNIQUE_KEY) }
+                    .groupBy { it.indexType }
+                    .map { (key, value) ->
+                        Statement()
+                            .addSegment("UNIQUE `uk_${value.joinToString("_") { it.name }}`")
+                            .addSegment("(${value.joinToString { "${it.name.asFormattedColumnName()} ${if (it.desc) "desc" else ""}".trim() }})")
+                            .addSegmentIfTrue(key != IndexType.DEFAULT) {
+                                addSegment("USING $key")
+                            }.build()
+                    }.joinToString()
+                )
+            }
         }
         stat.addSegment(")")
         return stat.build()
@@ -204,6 +233,31 @@ open class ExecutableSource(val table: Table<*, *>, var dataSource: DataSource, 
     open fun Table<*, *>.generateCreateIndexQuery(index: Index): String? {
         if (host is HostSQL && index.checkExists) {
             val sql = "select count(*) from information_schema.STATISTICS where table_schema = DATABASE() and TABLE_NAME = ? and INDEX_NAME = ?"
+            ResultProcessor(sql, object : Executable<ResultSet> {
+                override fun <C> invoke(func: ResultSet.() -> C): C {
+                    return try {
+                        connection.prepareStatement(sql, autoGeneratedKeys).use { statement: PreparedStatement ->
+                            statement.setString(1, table.name)
+                            statement.setString(2, index.name)
+                            statement.executeQuery().use { func(it) }
+                        }
+                    } catch (ex: SQLException) {
+                        warning("Query: $sql")
+                        warning("Parameters (2): [${table.name},${index.name}]")
+                        throw ex
+                    }
+                }
+            }).also { processors += it }.first {
+                return@first getInt(1) >= 1
+            }.also {
+                if (it) {
+                    return null
+                }
+                index.checkExists = false
+            }
+        }
+        if (host is HostPostgreSQL && index.checkExists) {
+            val sql = "SELECT count(*) FROM pg_indexes WHERE schemaname = current_schema() AND tablename = ? AND indexname = ?"
             ResultProcessor(sql, object : Executable<ResultSet> {
                 override fun <C> invoke(func: ResultSet.() -> C): C {
                     return try {

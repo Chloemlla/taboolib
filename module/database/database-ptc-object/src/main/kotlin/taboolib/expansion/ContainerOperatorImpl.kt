@@ -2,6 +2,8 @@ package taboolib.expansion
 
 import taboolib.common.platform.function.warning
 import taboolib.module.database.*
+import taboolib.module.database.asFormattedColumnName
+import taboolib.module.database.setupQuoterForHost
 import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.ResultSet
@@ -39,6 +41,13 @@ class ContainerOperatorImpl(
      */
     val isTransactional: Boolean
         get() = sharedConnection != null
+
+    /**
+     * 设置标识符引用方言
+     */
+    private fun setupQuoter() {
+        setupQuoterForHost(table.host)
+    }
 
     override fun <T> getOne(type: Class<T>, filter: Filter.() -> Unit): T? {
         val typeClass = AnalyzedClass.of(type)
@@ -92,7 +101,7 @@ class ContainerOperatorImpl(
             val primaryName = typeClass.primaryMemberName ?: error("No primary id found.")
             val tableName = table.name
             val action = buildJoinSelect(typeClass) {
-                where("`$tableName`.`$primaryName`" eq id.value())
+                where("$tableName.$primaryName".asFormattedColumnName() eq id.value())
                 where(filter)
                 limit(1)
             }
@@ -111,7 +120,7 @@ class ContainerOperatorImpl(
             val primaryName = typeClass.primaryMemberName ?: error("No primary id found.")
             val tableName = table.name
             val action = buildJoinSelect(typeClass) {
-                where("`$tableName`.`$primaryName`" eq id.value())
+                where("$tableName.$primaryName".asFormattedColumnName() eq id.value())
                 where(filter)
             }
             return executeQuery(action) { rs ->
@@ -531,9 +540,9 @@ class ContainerOperatorImpl(
      */
     private fun buildInsertSql(typeClass: AnalyzedClass): String {
         val columnNames = getColumnNames(typeClass)
-        val columns = columnNames.joinToString(", ") { "`$it`" }
+        val columns = columnNames.joinToString(", ") { it.asFormattedColumnName() }
         val placeholders = columnNames.joinToString(", ") { "?" }
-        return "INSERT INTO `${table.name}` ($columns) VALUES ($placeholders)"
+        return "INSERT INTO ${table.name.asFormattedColumnName()} ($columns) VALUES ($placeholders)"
     }
 
     /**
@@ -546,13 +555,13 @@ class ContainerOperatorImpl(
     ): String {
         val mutableMembers = typeClass.members.filter { !it.isFinal || it.isLinkTable }
         val setClause = mutableMembers.joinToString(", ") { member ->
-            if (member.isLinkTable) "`${member.linkTableColumn}` = ?" else "`${member.name}` = ?"
+            if (member.isLinkTable) "${member.linkTableColumn!!.asFormattedColumnName()} = ?" else "${member.name.asFormattedColumnName()} = ?"
         }
         val whereClause = buildString {
-            append("`$primaryName` = ?")
-            keyMembers.forEach { append(" AND `${it.name}` = ?") }
+            append("${primaryName.asFormattedColumnName()} = ?")
+            keyMembers.forEach { append(" AND ${it.name.asFormattedColumnName()} = ?") }
         }
-        return "UPDATE `${table.name}` SET $setClause WHERE $whereClause"
+        return "UPDATE ${table.name.asFormattedColumnName()} SET $setClause WHERE $whereClause"
     }
 
     override fun <T> delete(type: Class<T>, id: Any, filter: Filter.() -> Unit) {
@@ -588,10 +597,10 @@ class ContainerOperatorImpl(
                 if (usePrimaryKey) {
                     val pName = typeClass.primaryMemberName ?: error("No primary id found.")
                     val pValue = typeClass.getPrimaryMemberValue(data)
-                    where("`$tableName`.`$pName`" eq pValue?.value())
+                    where("$tableName.$pName".asFormattedColumnName() eq pValue?.value())
                 }
                 typeClass.members.filter { it.isKey }.forEach { member ->
-                    where("`$tableName`.`${member.name}`" eq typeClass.getValue(data, member)?.value())
+                    where("$tableName.${member.name}".asFormattedColumnName() eq typeClass.getValue(data, member)?.value())
                 }
             }
             return executeQuery(action) { rs ->
@@ -620,10 +629,10 @@ class ContainerOperatorImpl(
                 if (usePrimaryKey) {
                     val pName = typeClass.primaryMemberName ?: error("No primary id found.")
                     val pValue = typeClass.getPrimaryMemberValue(data)
-                    where("`$tableName`.`$pName`" eq pValue?.value())
+                    where("$tableName.$pName".asFormattedColumnName() eq pValue?.value())
                 }
                 typeClass.members.filter { it.isKey }.forEach { member ->
-                    where("`$tableName`.`${member.name}`" eq typeClass.getValue(data, member)?.value())
+                    where("$tableName.${member.name}".asFormattedColumnName() eq typeClass.getValue(data, member)?.value())
                 }
                 limit(1)
             }
@@ -663,7 +672,7 @@ class ContainerOperatorImpl(
         if (typeClass.hasLinkMembers) {
             val tableName = table.name
             val action = buildJoinSelect(typeClass) {
-                where("`$tableName`.`id`" eq rowId)
+                where("$tableName.id".asFormattedColumnName() eq rowId)
                 limit(1)
             }
             return executeQuery(action) { rs ->
@@ -695,7 +704,7 @@ class ContainerOperatorImpl(
         if (typeClass.hasLinkMembers) {
             val tableName = table.name
             val action = buildJoinSelect(typeClass) {
-                where { "`$tableName`.`$primaryName`" inside ids.map { it.value() }.toTypedArray() }
+                where { "$tableName.$primaryName".asFormattedColumnName() inside ids.map { it.value() }.toTypedArray() }
             }
             return executeQuery(action) { rs ->
                 buildList {
@@ -899,6 +908,7 @@ class ContainerOperatorImpl(
      * 构建带 JOIN 的 ActionSelect（支持无限嵌套关联）
      */
     private fun buildJoinSelect(typeClass: AnalyzedClass, extra: ActionSelect.() -> Unit = {}): ActionSelect {
+        setupQuoter()
         val tableName = table.name
         val aliasCounter = intArrayOf(0)
         val visited = mutableSetOf(typeClass.clazz)
@@ -907,17 +917,17 @@ class ContainerOperatorImpl(
             val selectRows = mutableListOf<String>()
             // 主表列
             typeClass.columnMembers.forEach { member ->
-                selectRows += "`$tableName`.`${member.name}` AS `${member.name}`"
+                selectRows += "$tableName.${member.name}".asFormattedColumnName() + " AS " + member.name.asFormattedColumnName()
             }
             // 递归展开 JOIN 树
             fun processNodes(nodes: List<LinkJoinNode>) {
                 for (node in nodes) {
                     node.analyzedClass.columnMembers.forEach { linkedMember ->
-                        selectRows += "`${node.tableAlias}`.`${linkedMember.name}` AS `${node.columnPrefix}${linkedMember.name}`"
+                        selectRows += "${node.tableAlias}.${linkedMember.name}".asFormattedColumnName() + " AS " + "${node.columnPrefix}${linkedMember.name}".asFormattedColumnName()
                     }
-                    leftJoin("`${node.realTableName}` AS `${node.tableAlias}`") {
-                        on("`${node.parentAlias}`.`${node.member.linkTableColumn}`" eq
-                            pre("`${node.tableAlias}`.`${node.analyzedClass.primaryMemberName}`"))
+                    leftJoin("${node.realTableName.asFormattedColumnName()} AS ${node.tableAlias.asFormattedColumnName()}") {
+                        on("${node.parentAlias}.${node.member.linkTableColumn}".asFormattedColumnName() eq
+                            pre("${node.tableAlias}.${node.analyzedClass.primaryMemberName}".asFormattedColumnName()))
                     }
                     processNodes(node.children)
                 }
@@ -994,6 +1004,7 @@ class ContainerOperatorImpl(
      * 获取连接并执行操作
      */
     private inline fun <T> withConnection(crossinline block: (Connection) -> T): T {
+        setupQuoter()
         return if (sharedConnection != null) {
             block(sharedConnection)
         } else {
@@ -1005,6 +1016,7 @@ class ContainerOperatorImpl(
      * 在事务中执行操作（用于批量写入）
      */
     private inline fun withTransaction(crossinline block: (Connection) -> Unit) {
+        setupQuoter()
         if (sharedConnection != null) {
             // 已在事务中，直接执行
             block(sharedConnection)

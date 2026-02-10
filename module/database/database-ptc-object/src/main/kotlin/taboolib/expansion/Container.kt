@@ -1,6 +1,7 @@
 package taboolib.expansion
 
 import org.tabooproject.reflex.Reflex.Companion.invokeMethod
+import taboolib.expansion.AnalyzedClassMember.Companion.resolveTableName
 import taboolib.expansion.AnalyzedClassMember.Companion.toColumnName
 import taboolib.module.database.ColumnBuilder
 import taboolib.module.database.Host
@@ -28,7 +29,7 @@ abstract class Container<T : ColumnBuilder>(val host: Host<T>) {
             val linkClass = member.linkTableClass ?: continue
             if (!classOperatorMap.containsKey(linkClass)) {
                 val linkType = AnalyzedClass.of(linkClass)
-                val linkName = linkClass.simpleName.toColumnName()
+                val linkName = linkClass.resolveTableName()
                 createTable(linkType, linkName)
             }
         }

@@ -2,11 +2,13 @@ package taboolib.expansion
 
 import taboolib.common.platform.function.warning
 import taboolib.common5.*
+import taboolib.expansion.AnalyzedClassMember.Companion.resolveTableName
 import taboolib.expansion.AnalyzedClassMember.Companion.toColumnName
 import taboolib.module.database.ActionSelect
 import taboolib.module.database.Filter
 import taboolib.module.database.JoinFilter
 import taboolib.module.database.Order
+import taboolib.module.database.asFormattedColumnName
 import java.sql.Connection
 import java.sql.ResultSet
 import java.sql.SQLException
@@ -46,7 +48,7 @@ class JoinQuery internal constructor(
 
     /** 主表（泛型版，类名自动转 snake_case） */
     @JvmName("fromTyped")
-    inline fun <reified T> from(name: String = T::class.java.simpleName.toColumnName()): JoinQuery {
+    inline fun <reified T> from(name: String = T::class.java.resolveTableName()): JoinQuery {
         return from(name)
     }
 
@@ -58,19 +60,19 @@ class JoinQuery internal constructor(
 
     /** 内连接（泛型） */
     @JvmName("innerJoinTyped")
-    inline fun <reified T> innerJoin(name: String = T::class.java.simpleName.toColumnName(), noinline on: JoinFilter.() -> Unit): JoinQuery {
+    inline fun <reified T> innerJoin(name: String = T::class.java.resolveTableName(), noinline on: JoinFilter.() -> Unit): JoinQuery {
         return innerJoin(name, on)
     }
 
     /** 左连接（泛型） */
     @JvmName("leftJoinTyped")
-    inline fun <reified T> leftJoin(name: String = T::class.java.simpleName.toColumnName(), noinline on: JoinFilter.() -> Unit): JoinQuery {
+    inline fun <reified T> leftJoin(name: String = T::class.java.resolveTableName(), noinline on: JoinFilter.() -> Unit): JoinQuery {
         return leftJoin(name, on)
     }
 
     /** 右连接（泛型） */
     @JvmName("rightJoinTyped")
-    inline fun <reified T> rightJoin(name: String = T::class.java.simpleName.toColumnName(), noinline on: JoinFilter.() -> Unit): JoinQuery {
+    inline fun <reified T> rightJoin(name: String = T::class.java.resolveTableName(), noinline on: JoinFilter.() -> Unit): JoinQuery {
         return rightJoin(name, on)
     }
 
@@ -159,8 +161,8 @@ class JoinQuery internal constructor(
      */
     fun selectAs(vararg pairs: Pair<String, String>): JoinQuery {
         columns = pairs.map { (col, alias) ->
-            val formattedCol = col.split(".").joinToString(".") { "`$it`" }
-            "$formattedCol AS `$alias`"
+            val formattedCol = col.asFormattedColumnName()
+            "$formattedCol AS ${alias.asFormattedColumnName()}"
         }.toTypedArray()
         return this
     }
@@ -325,8 +327,8 @@ class JoinQuery internal constructor(
  */
 class SubQuery(val alias: String, private val action: ActionSelect) {
 
-    /** 生成 `(SELECT ...) AS \`alias\`` 格式的 SQL 片段 */
-    val sql: String get() = "(${action.query}) AS `$alias`"
+    /** 生成 `(SELECT ...) AS "alias"` 格式的 SQL 片段 */
+    val sql: String get() = "(${action.query}) AS ${alias.asFormattedColumnName()}"
 
     /** 子查询中的参数列表 */
     val params: List<Any> get() = action.elements

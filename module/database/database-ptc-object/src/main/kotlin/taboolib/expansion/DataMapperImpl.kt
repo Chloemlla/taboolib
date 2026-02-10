@@ -1,5 +1,6 @@
 package taboolib.expansion
 
+import taboolib.expansion.AnalyzedClassMember.Companion.resolveTableName
 import taboolib.expansion.AnalyzedClassMember.Companion.toColumnName
 import taboolib.module.database.*
 import java.sql.ResultSet
@@ -34,7 +35,7 @@ class DataMapperImpl<T>(
 ) : DataMapper<T> {
 
     private val operator: ContainerOperator
-        get() = container[type.simpleName.toColumnName()]
+        get() = container[type.resolveTableName()]
 
     private val analyzedClass by lazy { AnalyzedClass.of(type) }
 
@@ -232,7 +233,7 @@ class DataMapperImpl<T>(
 
     override fun <R> transaction(block: DataMapper<T>.() -> R): Result<R> {
         return container.transaction {
-            val txOperator = operator(type.simpleName.toColumnName())
+            val txOperator = operator(type.resolveTableName())
             val txMapper = TransactionalDataMapper(type, txOperator, cache, connection)
             txMapper.block()
         }

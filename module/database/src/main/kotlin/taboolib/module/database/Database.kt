@@ -22,6 +22,11 @@ import javax.sql.DataSource
         test = "!com.zaxxer.hikari_4_0_3.HikariDataSource",
         relocate = ["!com.zaxxer.hikari", "!com.zaxxer.hikari_4_0_3", "!org.slf4j", "!org.slf4j_2_0_8"],
         transitive = false
+    ),
+    RuntimeDependency(
+        "!com.mysql:mysql-connector-j:8.4.0",
+        test = "!com.mysql.cj.jdbc.Driver",
+        transitive = false
     )
 )
 object Database {
@@ -49,11 +54,16 @@ object Database {
     fun createDataSourceWithoutConfig(host: Host<*>): DataSource {
         val config = HikariConfig()
         config.jdbcUrl = host.connectionUrl
-        if (host is HostSQL) {
-            config.username = host.user
-            config.password = host.password
-        } else {
-            error("Unsupported host: $host")
+        when (host) {
+            is HostSQL -> {
+                config.username = host.user
+                config.password = host.password
+            }
+            is HostPostgreSQL -> {
+                config.username = host.user
+                config.password = host.password
+            }
+            else -> error("Unsupported host: $host")
         }
         return HikariDataSource(config)
     }
@@ -66,6 +76,10 @@ object Database {
         config.jdbcUrl = host.connectionUrl
         when (host) {
             is HostSQL -> {
+                config.username = host.user
+                config.password = host.password
+            }
+            is HostPostgreSQL -> {
                 config.username = host.user
                 config.password = host.password
             }

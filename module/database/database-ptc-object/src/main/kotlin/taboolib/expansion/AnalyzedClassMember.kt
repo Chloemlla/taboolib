@@ -3,6 +3,7 @@ package taboolib.expansion
 import taboolib.common.reflect.getAnnotationIfPresent
 import taboolib.module.database.ColumnTypeSQL
 import taboolib.module.database.ColumnTypeSQLite
+import taboolib.module.database.ColumnTypePostgreSQL
 import java.lang.reflect.Parameter
 
 /**
@@ -43,6 +44,9 @@ class AnalyzedClassMember(private val root: Parameter, name: String, val isFinal
 
     /** 自定义 SQLite 列类型 */
     val columnTypeSQLite: ColumnTypeSQLite? = root.findAnnotation<ColumnType>()?.sqlite
+
+    /** 自定义 PostgreSQL 列类型 */
+    val columnTypePostgreSQL: ColumnTypePostgreSQL? = root.findAnnotation<ColumnType>()?.postgresql
 
     /** 是否指定了自定义列类型 */
     val hasColumnType: Boolean = root.findAnnotation<ColumnType>() != null
@@ -141,6 +145,11 @@ class AnalyzedClassMember(private val root: Parameter, name: String, val isFinal
         /** 转换为数据库字段名称 */
         fun String.toColumnName(): String {
             return toCharArray().joinToString("") { if (it.isUpperCase()) "_${it.lowercase()}" else it.toString() }.trimStart('_')
+        }
+
+        /** 解析数据类的表名：优先使用 @TableName 注解值，否则将类名转为下划线命名 */
+        fun Class<*>.resolveTableName(): String {
+            return getAnnotation(TableName::class.java)?.value ?: simpleName.toColumnName()
         }
 
         /** 获取注解 */

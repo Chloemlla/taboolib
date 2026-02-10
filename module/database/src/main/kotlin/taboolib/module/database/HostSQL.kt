@@ -27,7 +27,7 @@ class HostSQL(val host: String, val port: String, val user: String, val password
     override val connectionUrlSimple: String
         get() = "jdbc:mysql://$host:$port/$database"
     override val driverClass: String
-        get() = settingsFile.getString("DefaultSettings.DriverClassName", "com.mysql.jdbc.Driver")!!
+        get() = settingsFile.getString("DefaultSettings.DriverClassName", "com.mysql.cj.jdbc.Driver")!!
 
     constructor(section: ConfigurationSection) : this(
         section.getString("host", "localhost")!!,
