@@ -109,6 +109,37 @@ data class WrapperData(
 
 // endregion
 
+// region @LinkTable 测试用 data class
+
+data class LinkedSimpleData(
+    @Id val id: String,
+    var value: Int,
+    @LinkTable("testDataId") val testData: MultiKeyData?
+)
+
+// endregion
+
+// region @LinkTable 嵌套关联测试用 data class
+
+data class Level3Data(
+    @Id val id: String,
+    var info: String
+)
+
+data class Level2Data(
+    @Id val id: String,
+    var name: String,
+    @LinkTable("level3Id") val level3: Level3Data?
+)
+
+data class Level1Data(
+    @Id val id: String,
+    var title: String,
+    @LinkTable("level2Id") val level2: Level2Data?
+)
+
+// endregion
+
 // region 工具函数
 
 /**
@@ -129,11 +160,20 @@ fun createTestDataSource(): HikariDataSource {
 /**
  * 手动构建 Table + ContainerOperatorImpl，复用 ContainerSQLite 的建表逻辑
  */
-fun createTestOperator(type: Class<*>, name: String, dataSource: DataSource): ContainerOperatorImpl {
+fun createTestOperator(
+    type: Class<*>,
+    name: String,
+    dataSource: DataSource,
+    classTableMap: MutableMap<Class<*>, String>? = null,
+    classOperatorMap: MutableMap<Class<*>, ContainerOperator>? = null
+): ContainerOperatorImpl {
     val analyzedClass = AnalyzedClass.of(type)
     val table = buildSQLiteTable(analyzedClass, name)
     table.createTable(dataSource)
-    return ContainerOperatorImpl(table, dataSource)
+    classTableMap?.put(type, name)
+    val operator = ContainerOperatorImpl(table, dataSource, classTableMap = classTableMap, classOperatorMap = classOperatorMap)
+    classOperatorMap?.put(type, operator)
+    return operator
 }
 
 /**
@@ -146,6 +186,22 @@ private fun buildSQLiteTable(type: AnalyzedClass, name: String): Table<HostSQLit
             add { id() }
         }
         type.members.forEach { member ->
+            // @LinkTable 成员：创建外键列
+            if (member.isLinkTable) {
+                val linkedClass = AnalyzedClass.of(member.linkTableClass!!)
+                val linkedPrimary = linkedClass.primaryMember!!
+                val fkColumnName = member.linkTableColumn!!
+                add(fkColumnName) {
+                    when {
+                        linkedPrimary.isString || linkedPrimary.isEnum -> type(ColumnTypeSQLite.TEXT, linkedPrimary.length)
+                        linkedPrimary.isUUID -> type(ColumnTypeSQLite.TEXT, 36)
+                        linkedPrimary.canConvertedInteger() -> type(ColumnTypeSQLite.INTEGER)
+                        linkedPrimary.canConvertedDecimal() -> type(ColumnTypeSQLite.REAL)
+                        else -> type(ColumnTypeSQLite.TEXT)
+                    }
+                }
+                return@forEach
+            }
             when {
                 member.isString || member.isEnum -> add(member.name) {
                     type(ColumnTypeSQLite.TEXT, member.length) { options(member) }
@@ -186,6 +242,8 @@ private fun ColumnSQLite.options(member: AnalyzedClassMember) {
 class TestContainer(val dataSource: HikariDataSource) {
 
     val operators = mutableMapOf<String, ContainerOperatorImpl>()
+    val classTableMap = mutableMapOf<Class<*>, String>()
+    val classOperatorMap = mutableMapOf<Class<*>, ContainerOperator>()
 
     inline fun <reified T> new(name: String = T::class.java.simpleName.let {
         taboolib.expansion.AnalyzedClassMember.Companion.run { it.toColumnName() }
@@ -194,7 +252,7 @@ class TestContainer(val dataSource: HikariDataSource) {
     }
 
     fun <T> new(type: Class<T>, name: String): ContainerOperatorImpl {
-        val op = createTestOperator(type, name, dataSource)
+        val op = createTestOperator(type, name, dataSource, classTableMap, classOperatorMap)
         operators[name] = op
         return op
     }

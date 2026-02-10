@@ -92,9 +92,76 @@ class JoinQuery internal constructor(
         return this
     }
 
+    /** 内连接（子查询） */
+    fun innerJoin(sub: SubQuery, on: JoinFilter.() -> Unit): JoinQuery {
+        joins += JoinDef(JoinDefType.INNER, sub.sql, on, sub.params)
+        return this
+    }
+
+    /** 左连接（子查询） */
+    fun leftJoin(sub: SubQuery, on: JoinFilter.() -> Unit): JoinQuery {
+        joins += JoinDef(JoinDefType.LEFT, sub.sql, on, sub.params)
+        return this
+    }
+
+    /** 右连接（子查询） */
+    fun rightJoin(sub: SubQuery, on: JoinFilter.() -> Unit): JoinQuery {
+        joins += JoinDef(JoinDefType.RIGHT, sub.sql, on, sub.params)
+        return this
+    }
+
+    /** 内连接（原始 SQL + 参数） */
+    fun innerJoin(name: String, params: List<Any>, on: JoinFilter.() -> Unit): JoinQuery {
+        joins += JoinDef(JoinDefType.INNER, name, on, params)
+        return this
+    }
+
+    /** 左连接（原始 SQL + 参数） */
+    fun leftJoin(name: String, params: List<Any>, on: JoinFilter.() -> Unit): JoinQuery {
+        joins += JoinDef(JoinDefType.LEFT, name, on, params)
+        return this
+    }
+
+    /** 右连接（原始 SQL + 参数） */
+    fun rightJoin(name: String, params: List<Any>, on: JoinFilter.() -> Unit): JoinQuery {
+        joins += JoinDef(JoinDefType.RIGHT, name, on, params)
+        return this
+    }
+
     /** 指定查询列 */
     fun select(vararg rows: String): JoinQuery {
         columns = arrayOf(*rows)
+        return this
+    }
+
+    /**
+     * 指定查询列并设置别名
+     *
+     * 解决多表联查中同名列冲突问题。别名将作为 BundleMap 的 key，
+     * 同时也是 mapTo 匹配 data class 字段名的依据。
+     *
+     * ```kotlin
+     * homeTable.join {
+     *     innerJoin<PlayerStats> {
+     *         on("player_home.username" eq pre("player_stats.username"))
+     *     }
+     *     selectAs(
+     *         "player_home.username" to "username",
+     *         "player_home.world" to "world",
+     *         "player_stats.level" to "level",
+     *         "player_stats.username" to "stats_username"
+     *     )
+     * }.mapTo<PlayerSummary>()
+     * // PlayerSummary(val username: String, val world: String, val level: Int, val statsUsername: String)
+     * ```
+     *
+     * @param pairs 列名 to 别名
+     */
+    fun selectAs(vararg pairs: Pair<String, String>): JoinQuery {
+        columns = pairs.map { (col, alias) ->
+            val formattedCol = col.split(".").joinToString(".") { "`$it`" }
+            "$formattedCol AS `$alias`"
+        }.toTypedArray()
         return this
     }
 
@@ -182,9 +249,9 @@ class JoinQuery internal constructor(
             columns?.also { rows(*it) }
             joins.forEach { def ->
                 when (def.type) {
-                    JoinDefType.INNER -> innerJoin(def.table, def.on)
-                    JoinDefType.LEFT -> leftJoin(def.table, def.on)
-                    JoinDefType.RIGHT -> rightJoin(def.table, def.on)
+                    JoinDefType.INNER -> innerJoin(def.table, def.params, def.on)
+                    JoinDefType.LEFT -> leftJoin(def.table, def.params, def.on)
+                    JoinDefType.RIGHT -> rightJoin(def.table, def.params, def.on)
                 }
             }
             filterFunc?.also { where(it) }
@@ -231,6 +298,10 @@ class JoinQuery internal constructor(
             member.isChar -> raw.cint.toChar()
             member.isString -> raw.toString()
             member.isUUID -> UUID.fromString(raw.toString())
+            member.isIndexedEnum -> {
+                val idx = raw.clong
+                member.returnType.enumConstants.firstOrNull { (it as IndexedEnum).index == idx }
+            }
             member.isEnum -> member.returnType.enumConstants.firstOrNull { (it as Enum<*>).name == raw.toString() }
             member.isByteArray -> raw.cByteArray
             else -> {
@@ -240,7 +311,54 @@ class JoinQuery internal constructor(
         }
     }
 
-    private data class JoinDef(val type: JoinDefType, val table: String, val on: JoinFilter.() -> Unit)
+    private data class JoinDef(val type: JoinDefType, val table: String, val on: JoinFilter.() -> Unit, val params: List<Any> = emptyList())
 
     private enum class JoinDefType { INNER, LEFT, RIGHT }
+}
+
+/**
+ * 子查询定义
+ *
+ * 复用 [ActionSelect] 构建 SQL 和收集参数，用于 [JoinQuery] 的子查询 JOIN。
+ *
+ * @see subQuery
+ */
+class SubQuery(val alias: String, private val action: ActionSelect) {
+
+    /** 生成 `(SELECT ...) AS \`alias\`` 格式的 SQL 片段 */
+    val sql: String get() = "(${action.query}) AS `$alias`"
+
+    /** 子查询中的参数列表 */
+    val params: List<Any> get() = action.elements
+}
+
+/**
+ * 构建子查询 DSL
+ *
+ * 复用 [ActionSelect] 的全部能力（rows/where/groupBy/orderBy/limit 等），
+ * 自动收集参数用于 PreparedStatement 绑定。
+ *
+ * ```kotlin
+ * homeMapper.join {
+ *     from("`player_home` AS `h`")
+ *     innerJoin(
+ *         subQuery("player_stats", "sub") {
+ *             rows("username", "SUM(kills) AS total_kills")
+ *             where { "kills" gt 50 }
+ *             groupBy("username")
+ *         }
+ *     ) {
+ *         on("h.username" eq pre("sub.username"))
+ *     }
+ *     selectAs("h.username" to "username", "sub.total_kills" to "total_kills")
+ *     where { "h.world" eq "world" }
+ * }.execute()
+ * ```
+ *
+ * @param table 子查询的源表名
+ * @param alias 子查询的别名，用于外层 ON/WHERE/selectAs 引用
+ * @param builder ActionSelect DSL
+ */
+fun subQuery(table: String, alias: String, builder: ActionSelect.() -> Unit): SubQuery {
+    return SubQuery(alias, ActionSelect(table).apply(builder))
 }

@@ -20,7 +20,33 @@ class ContainerSQLite(file: File) : Container<SQLite>(HostSQLite(file)) {
                 add { id() }
             }
             type.members.forEach { member ->
+                // @LinkTable 成员：创建外键列而非展开关联类
+                if (member.isLinkTable) {
+                    val linkedClass = AnalyzedClass.of(member.linkTableClass!!)
+                    val linkedPrimary = linkedClass.primaryMember!!
+                    val fkColumnName = member.linkTableColumn!!
+                    add(fkColumnName) {
+                        when {
+                            linkedPrimary.hasColumnType -> type(linkedPrimary.columnTypeSQLite!!, linkedPrimary.length)
+                            linkedPrimary.isIndexedEnum -> type(ColumnTypeSQLite.INTEGER)
+                            linkedPrimary.isString || linkedPrimary.isEnum -> type(ColumnTypeSQLite.TEXT, linkedPrimary.length)
+                            linkedPrimary.isUUID -> type(ColumnTypeSQLite.TEXT, 36)
+                            linkedPrimary.canConvertedInteger() -> type(ColumnTypeSQLite.INTEGER)
+                            linkedPrimary.canConvertedDecimal() -> type(ColumnTypeSQLite.REAL)
+                            else -> type(ColumnTypeSQLite.TEXT)
+                        }
+                    }
+                    return@forEach
+                }
                 when {
+                    // 自定义列类型
+                    member.hasColumnType -> add(member.name) {
+                        type(member.columnTypeSQLite!!, member.length) { options(member) }
+                    }
+                    // IndexedEnum（数值存储）
+                    member.isIndexedEnum -> add(member.name) {
+                        type(ColumnTypeSQLite.INTEGER) { options(member) }
+                    }
                     // 字符串
                     member.isString || member.isEnum -> add(member.name) {
                         type(ColumnTypeSQLite.TEXT, member.length) { options(member) }
@@ -69,6 +95,8 @@ class ContainerSQLite(file: File) : Container<SQLite>(HostSQLite(file)) {
 
     private fun ColumnSQLite.options(member: AnalyzedClassMember) {
         if (member.isPrimary) {
+            // ⚠ SQLite 的 PRIMARY KEY 强制唯一，与 SQL（MySQL）的 KEY（普通索引，不唯一）行为不同。
+            // 这导致 @Id + @Key 复合定位模式（同一 @Id 值多条记录）在 SQLite 下不可用。
             options(ColumnOptionSQLite.PRIMARY_KEY)
         }
         if (member.isUniqueKey) {

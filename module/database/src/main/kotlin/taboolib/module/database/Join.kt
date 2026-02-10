@@ -6,7 +6,7 @@ package taboolib.module.database
  * @author sky
  * @since 2021/6/23 3:32 下午
  */
-class Join(val joinType: JoinType, val tableName: String, val filter: Filter) : Attributes {
+class Join(val joinType: JoinType, val tableName: String, val filter: Filter, val params: List<Any> = emptyList()) : Attributes {
 
     /** 语句 */
     override val query: String
@@ -20,5 +20,5 @@ class Join(val joinType: JoinType, val tableName: String, val filter: Filter) : 
 
     /** 占位符对应的元素 */
     override val elements: List<Any>
-        get() = filter.elements
+        get() = params + filter.elements
 }
