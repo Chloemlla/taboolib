@@ -54,14 +54,20 @@ class AnalyzedClass private constructor(val clazz: Class<*>) {
     /** 主成员名称 */
     val primaryMemberName = primaryMember?.name
 
-    /** 实际映射到列的成员（排除 @LinkTable 成员） */
-    val columnMembers = members.filter { !it.isLinkTable }
+    /** 实际映射到列的成员（排除 @LinkTable 成员和容器成员） */
+    val columnMembers = members.filter { !it.isLinkTable && !it.isCollection }
 
     /** @LinkTable 成员列表 */
     val linkMembers = members.filter { it.isLinkTable }
 
     /** 是否存在 @LinkTable 成员 */
     val hasLinkMembers = linkMembers.isNotEmpty()
+
+    /** 容器类型成员列表（List/Set/Map） */
+    val collectionMembers = members.filter { it.isCollection }
+
+    /** 是否存在容器类型成员 */
+    val hasCollectionMembers = collectionMembers.isNotEmpty()
 
     /** 反序列化所在伴生类实例 */
     val wrapperObjectInstance = runCatching { clazz.getProperty<Any>("Companion", isStatic = true) }.getOrNull()
@@ -98,6 +104,15 @@ class AnalyzedClass private constructor(val clazz: Class<*>) {
                 )
             }
         }
+        // 验证容器类型成员
+        collectionMembers.forEach { member ->
+            require(member.parameterizedType != null) {
+                """
+                    在 ${clazz.simpleName} 类中，容器类型成员 ${member.propertyName} 缺少泛型信息。
+                    Collection member ${member.propertyName} in ${clazz.simpleName} is missing generic type information.
+                """.t()
+            }
+        }
         if (members.count { it.isPrimary } > 1) {
             error(
                 """
@@ -132,12 +147,12 @@ class AnalyzedClass private constructor(val clazz: Class<*>) {
         return property.get(data)
     }
 
-    /** 读取数据（不含 @LinkTable 成员） */
+    /** 读取数据（不含 @LinkTable 成员和容器成员） */
     fun read(result: ResultSet): Map<String, Any?> {
         val map = hashMapOf<String, Any?>()
         members.forEach { member ->
-            // 跳过 @LinkTable 成员，它们没有对应的列
-            if (member.isLinkTable) return@forEach
+            // 跳过 @LinkTable 成员和容器成员，它们没有对应的列
+            if (member.isLinkTable || member.isCollection) return@forEach
             val obj: Any? = result.getObject(member.name)
             if (obj == null) {
                 map[member.name] = null

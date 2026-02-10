@@ -140,6 +140,34 @@ data class Level1Data(
 
 // endregion
 
+// region 容器类型测试用 data class
+
+data class ListData(
+    @Id val id: String,
+    var label: String,
+    val tags: List<String>
+)
+
+data class SetData(
+    @Id val id: String,
+    val scores: Set<String>
+)
+
+data class MapData(
+    @Id val id: String,
+    val props: Map<String, String>
+)
+
+data class MixedCollectionData(
+    @Id val id: String,
+    var name: String,
+    val tags: List<String>,
+    val uniqueFlags: Set<String>,
+    val metadata: Map<String, String>
+)
+
+// endregion
+
 // region 工具函数
 
 /**
@@ -171,9 +199,58 @@ fun createTestOperator(
     val table = buildSQLiteTable(analyzedClass, name)
     table.createTable(dataSource)
     classTableMap?.put(type, name)
-    val operator = ContainerOperatorImpl(table, dataSource, classTableMap = classTableMap, classOperatorMap = classOperatorMap)
+    // 创建容器子表
+    val collectionInfos = mutableListOf<CollectionTableInfo>()
+    if (analyzedClass.hasCollectionMembers) {
+        val primaryMember = analyzedClass.primaryMember!!
+        for (member in analyzedClass.collectionMembers) {
+            val childTableName = "${name}_${member.name}"
+            val fkColumnName = "parent_${primaryMember.name}"
+            val childTable = buildCollectionSQLiteTable(primaryMember, member, childTableName)
+            childTable.createTable(dataSource)
+            collectionInfos += CollectionTableInfo(childTableName, fkColumnName, member, childTable)
+        }
+    }
+    val operator = ContainerOperatorImpl(
+        table, dataSource,
+        classTableMap = classTableMap, classOperatorMap = classOperatorMap,
+        collectionTableInfos = collectionInfos.ifEmpty { null }
+    )
     classOperatorMap?.put(type, operator)
     return operator
+}
+
+/**
+ * 构建容器子表的 SQLite Table 对象
+ */
+private fun buildCollectionSQLiteTable(
+    primaryMember: AnalyzedClassMember,
+    member: AnalyzedClassMember,
+    childTableName: String
+): Table<HostSQLite, SQLite> {
+    val fakeHost = HostSQLite(java.io.File("test.db"))
+    return Table(childTableName, fakeHost) {
+        add { id() }
+        // FK 列
+        add("parent_${primaryMember.name}") {
+            when {
+                primaryMember.isString || primaryMember.isEnum -> type(ColumnTypeSQLite.TEXT, primaryMember.length)
+                primaryMember.isUUID -> type(ColumnTypeSQLite.TEXT, 36)
+                primaryMember.canConvertedInteger() -> type(ColumnTypeSQLite.INTEGER)
+                primaryMember.canConvertedDecimal() -> type(ColumnTypeSQLite.REAL)
+                else -> type(ColumnTypeSQLite.TEXT)
+            }
+        }
+        if (member.isMap) {
+            add("map_key") { type(ColumnTypeSQLite.TEXT, 512) }
+            add("map_value") { type(ColumnTypeSQLite.TEXT, 512) }
+        } else {
+            add("value") { type(ColumnTypeSQLite.TEXT, 512) }
+            if (member.isList) {
+                add("sort_order") { type(ColumnTypeSQLite.INTEGER) }
+            }
+        }
+    }
 }
 
 /**
@@ -186,6 +263,8 @@ private fun buildSQLiteTable(type: AnalyzedClass, name: String): Table<HostSQLit
             add { id() }
         }
         type.members.forEach { member ->
+            // 跳过容器类型成员（它们存储在子表中）
+            if (member.isCollection) return@forEach
             // @LinkTable 成员：创建外键列
             if (member.isLinkTable) {
                 val linkedClass = AnalyzedClass.of(member.linkTableClass!!)

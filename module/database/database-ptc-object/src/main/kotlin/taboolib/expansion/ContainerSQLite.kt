@@ -20,6 +20,8 @@ class ContainerSQLite(file: File) : Container<SQLite>(HostSQLite(file)) {
                 add { id() }
             }
             type.members.forEach { member ->
+                // 跳过容器类型成员（它们存储在子表中）
+                if (member.isCollection) return@forEach
                 // @LinkTable 成员：创建外键列而非展开关联类
                 if (member.isLinkTable) {
                     val linkedClass = AnalyzedClass.of(member.linkTableClass!!)
@@ -72,6 +74,40 @@ class ContainerSQLite(file: File) : Container<SQLite>(HostSQLite(file)) {
                         val customType = CustomTypeFactory.getCustomTypeByClass(member.returnType) ?: error("Unsupported type: ${member.name} (${member.returnType})")
                         add(member.name) { type(customType.typeSQLite, customType.length) { options(member) } }
                     }
+                }
+            }
+        }
+    }
+
+    override fun createCollectionTableObject(
+        parentType: AnalyzedClass,
+        parentTableName: String,
+        member: AnalyzedClassMember,
+        childTableName: String
+    ): Table<*, *> {
+        val primaryMember = parentType.primaryMember!!
+        return Table(childTableName, host) {
+            add { id() }
+            // FK 列：引用主表的 @Id
+            add("parent_${primaryMember.name}") {
+                when {
+                    primaryMember.isString || primaryMember.isEnum -> type(ColumnTypeSQLite.TEXT, primaryMember.length)
+                    primaryMember.isUUID -> type(ColumnTypeSQLite.TEXT, 36)
+                    primaryMember.canConvertedInteger() -> type(ColumnTypeSQLite.INTEGER)
+                    primaryMember.canConvertedDecimal() -> type(ColumnTypeSQLite.REAL)
+                    else -> type(ColumnTypeSQLite.TEXT)
+                }
+            }
+            if (member.isMap) {
+                // Map<K, V> → map_key, map_value
+                add("map_key") { type(ColumnTypeSQLite.TEXT, 512) }
+                add("map_value") { type(ColumnTypeSQLite.TEXT, 512) }
+            } else {
+                // List<T> / Set<T> → value
+                add("value") { type(ColumnTypeSQLite.TEXT, 512) }
+                if (member.isList) {
+                    // List 需要 sort_order 保序
+                    add("sort_order") { type(ColumnTypeSQLite.INTEGER) }
                 }
             }
         }

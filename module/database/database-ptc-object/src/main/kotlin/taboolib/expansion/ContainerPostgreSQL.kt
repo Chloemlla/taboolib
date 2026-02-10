@@ -29,6 +29,8 @@ class ContainerPostgreSQL(
                 add { id() }
             }
             type.members.forEach { member ->
+                // 跳过容器类型成员（它们存储在子表中）
+                if (member.isCollection) return@forEach
                 // @LinkTable 成员：创建外键列而非展开关联类
                 if (member.isLinkTable) {
                     val linkedClass = AnalyzedClass.of(member.linkTableClass!!)
@@ -103,6 +105,47 @@ class ContainerPostgreSQL(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    override fun createCollectionTableObject(
+        parentType: AnalyzedClass,
+        parentTableName: String,
+        member: AnalyzedClassMember,
+        childTableName: String
+    ): Table<*, *> {
+        val primaryMember = parentType.primaryMember!!
+        return Table(childTableName, host) {
+            add { id() }
+            // FK 列：引用主表的 @Id
+            add("parent_${primaryMember.name}") {
+                when {
+                    primaryMember.hasColumnType && primaryMember.columnTypePostgreSQL != ColumnTypePostgreSQL._DEFAULT -> {
+                        val colType = primaryMember.columnTypePostgreSQL!!
+                        if (colType.isRequired) type(colType, primaryMember.length) else type(colType)
+                    }
+                    primaryMember.hasColumnType && primaryMember.columnTypePostgreSQL == ColumnTypePostgreSQL._DEFAULT -> {
+                        val pgType = primaryMember.columnTypeSQL!!.toPostgreSQL()
+                        if (pgType.isRequired) type(pgType, primaryMember.length) else type(pgType)
+                    }
+                    primaryMember.isIndexedEnum -> type(ColumnTypePostgreSQL.BIGINT)
+                    primaryMember.isString || primaryMember.isEnum -> {
+                        if (primaryMember.length < 0) type(ColumnTypePostgreSQL.TEXT)
+                        else type(ColumnTypePostgreSQL.VARCHAR, primaryMember.length)
+                    }
+                    primaryMember.isUUID -> type(ColumnTypePostgreSQL.UUID)
+                    else -> type(primaryMember.type())
+                }
+            }
+            if (member.isMap) {
+                add("map_key") { type(ColumnTypePostgreSQL.VARCHAR, 512) }
+                add("map_value") { type(ColumnTypePostgreSQL.VARCHAR, 512) }
+            } else {
+                add("value") { type(ColumnTypePostgreSQL.VARCHAR, 512) }
+                if (member.isList) {
+                    add("sort_order") { type(ColumnTypePostgreSQL.INTEGER) }
                 }
             }
         }

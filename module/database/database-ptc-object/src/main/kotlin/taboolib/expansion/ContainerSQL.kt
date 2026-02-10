@@ -29,6 +29,8 @@ class ContainerSQL(
                 add { id() }
             }
             type.members.forEach { member ->
+                // 跳过容器类型成员（它们存储在子表中）
+                if (member.isCollection) return@forEach
                 // @LinkTable 成员：创建外键列而非展开关联类
                 if (member.isLinkTable) {
                     val linkedClass = AnalyzedClass.of(member.linkTableClass!!)
@@ -88,6 +90,43 @@ class ContainerSQL(
                             type(customType.typeSQL, customType.length) { options(member) }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    override fun createCollectionTableObject(
+        parentType: AnalyzedClass,
+        parentTableName: String,
+        member: AnalyzedClassMember,
+        childTableName: String
+    ): Table<*, *> {
+        val primaryMember = parentType.primaryMember!!
+        return Table(childTableName, host) {
+            add { id() }
+            // FK 列：引用主表的 @Id
+            add("parent_${primaryMember.name}") {
+                when {
+                    primaryMember.hasColumnType -> {
+                        val colType = primaryMember.columnTypeSQL!!
+                        if (colType.isRequired) type(colType, primaryMember.length) else type(colType)
+                    }
+                    primaryMember.isIndexedEnum -> type(ColumnTypeSQL.BIGINT)
+                    primaryMember.isString || primaryMember.isEnum -> {
+                        if (primaryMember.length < 0) type(ColumnTypeSQL.LONGTEXT)
+                        else type(ColumnTypeSQL.VARCHAR, primaryMember.length)
+                    }
+                    primaryMember.isUUID -> type(ColumnTypeSQL.CHAR, 36)
+                    else -> type(primaryMember.type())
+                }
+            }
+            if (member.isMap) {
+                add("map_key") { type(ColumnTypeSQL.VARCHAR, 512) }
+                add("map_value") { type(ColumnTypeSQL.VARCHAR, 512) }
+            } else {
+                add("value") { type(ColumnTypeSQL.VARCHAR, 512) }
+                if (member.isList) {
+                    add("sort_order") { type(ColumnTypeSQL.INT) }
                 }
             }
         }

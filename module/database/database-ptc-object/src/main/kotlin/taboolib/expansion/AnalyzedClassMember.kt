@@ -5,6 +5,7 @@ import taboolib.module.database.ColumnTypeSQL
 import taboolib.module.database.ColumnTypeSQLite
 import taboolib.module.database.ColumnTypePostgreSQL
 import java.lang.reflect.Parameter
+import java.lang.reflect.ParameterizedType
 
 /**
  * TabooLib
@@ -60,6 +61,47 @@ class AnalyzedClassMember(private val root: Parameter, name: String, val isFinal
     /** 关联的 data class 类型 */
     val linkTableClass: Class<*>? = if (isLinkTable) returnType else null
 
+    /** 泛型参数化类型 */
+    val parameterizedType: ParameterizedType? = root.parameterizedType.let {
+        it as? ParameterizedType
+    }
+
+    /** 是否为 List 类型 */
+    val isList: Boolean
+        get() = List::class.java.isAssignableFrom(returnType)
+
+    /** 是否为 Set 类型 */
+    val isSet: Boolean
+        get() = Set::class.java.isAssignableFrom(returnType)
+
+    /** 是否为 Map 类型 */
+    val isMap: Boolean
+        get() = Map::class.java.isAssignableFrom(returnType)
+
+    /** 是否为容器类型（List/Set/Map） */
+    val isCollection: Boolean
+        get() = isList || isSet || isMap
+
+    /** 容器元素类型（List<T>/Set<T> 的 T，Map<K,V> 的 V） */
+    val collectionElementType: Class<*>? = when {
+        parameterizedType != null && (List::class.java.isAssignableFrom(returnType) || Set::class.java.isAssignableFrom(returnType)) -> {
+            val arg = parameterizedType.actualTypeArguments.firstOrNull()
+            arg as? Class<*> ?: if (arg is ParameterizedType) arg.rawType as? Class<*> else null
+        }
+        parameterizedType != null && Map::class.java.isAssignableFrom(returnType) -> {
+            val args = parameterizedType.actualTypeArguments
+            val arg = args.getOrNull(1)
+            arg as? Class<*> ?: if (arg is ParameterizedType) arg.rawType as? Class<*> else null
+        }
+        else -> null
+    }
+
+    /** Map 的 Key 类型 */
+    val mapKeyType: Class<*>? = if (parameterizedType != null && Map::class.java.isAssignableFrom(returnType)) {
+        val arg = parameterizedType.actualTypeArguments.firstOrNull()
+        arg as? Class<*> ?: if (arg is ParameterizedType) arg.rawType as? Class<*> else null
+    } else null
+
     /** 是否为基础类型（Boolean） */
     val isBoolean: Boolean
         get() = returnType == Boolean::class.java || returnType == Boolean::class.javaPrimitiveType
@@ -114,7 +156,7 @@ class AnalyzedClassMember(private val root: Parameter, name: String, val isFinal
 
     /** 是否为自定义对象 */
     val isCustomObject: Boolean
-        get() = !isLinkTable && !isBoolean && !isByte && !isShort && !isInt && !isLong && !isFloat && !isDouble && !isChar && !isString && !isEnum && !isUUID && !isByteArray
+        get() = !isLinkTable && !isCollection && !isBoolean && !isByte && !isShort && !isInt && !isLong && !isFloat && !isDouble && !isChar && !isString && !isEnum && !isUUID && !isByteArray
 
     /** 是否可以转换成字符串类型 */
     fun canConvertedString(): Boolean {
@@ -155,6 +197,22 @@ class AnalyzedClassMember(private val root: Parameter, name: String, val isFinal
         /** 获取注解 */
         inline fun <reified T : Annotation> Parameter.findAnnotation(): T? {
             return getAnnotationIfPresent(T::class.java)
+        }
+
+        /** 判断是否为基础类型（可直接映射到数据库列的类型） */
+        fun isPrimitiveOrBasicType(clazz: Class<*>): Boolean {
+            return clazz == Boolean::class.java || clazz == Boolean::class.javaPrimitiveType
+                || clazz == Byte::class.java || clazz == Byte::class.javaPrimitiveType
+                || clazz == Short::class.java || clazz == Short::class.javaPrimitiveType
+                || clazz == Int::class.java || clazz == Int::class.javaPrimitiveType
+                || clazz == Long::class.java || clazz == Long::class.javaPrimitiveType
+                || clazz == Float::class.java || clazz == Float::class.javaPrimitiveType
+                || clazz == Double::class.java || clazz == Double::class.javaPrimitiveType
+                || clazz == Char::class.java || clazz == Char::class.javaPrimitiveType
+                || clazz == String::class.java
+                || clazz == java.util.UUID::class.java
+                || Enum::class.java.isAssignableFrom(clazz)
+                || clazz == ByteArray::class.java
         }
     }
 }

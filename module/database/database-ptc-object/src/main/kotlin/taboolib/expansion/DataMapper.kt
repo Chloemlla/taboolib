@@ -183,4 +183,54 @@ interface DataMapper<T> {
 
     // === 生命周期 ===
     fun close()
+
+    // === 容器类型 Accessor ===
+
+    /**
+     * 获取 Map 类型容器字段的数据库代理（通过 @Id 定位父记录）
+     *
+     * ```kotlin
+     * val props: MutableMap<String, String?> = mapper.mapOf("player1", "props")
+     * props["key1"] = "value1"   // → SQL INSERT/UPDATE
+     * props["key1"]              // → SQL SELECT
+     * ```
+     */
+    fun mapOf(id: Any, fieldName: String): MutableMap<String, String?>
+
+    /**
+     * 获取 Map 类型容器字段的数据库代理（通过 Filter 定位父记录）
+     */
+    fun mapOf(fieldName: String, filter: Filter.() -> Unit): MutableMap<String, String?>
+
+    /**
+     * 获取 List 类型容器字段的数据库代理（通过 @Id 定位父记录）
+     *
+     * ```kotlin
+     * val tags: MutableList<String?> = mapper.listOf("player1", "tags")
+     * tags.add("newTag")         // → SQL INSERT
+     * tags[0]                    // → SQL SELECT
+     * ```
+     */
+    fun listOf(id: Any, fieldName: String): MutableList<String?>
+
+    /**
+     * 获取 List 类型容器字段的数据库代理（通过 Filter 定位父记录）
+     */
+    fun listOf(fieldName: String, filter: Filter.() -> Unit): MutableList<String?>
+
+    /**
+     * 获取 Set 类型容器字段的数据库代理（通过 @Id 定位父记录）
+     *
+     * ```kotlin
+     * val scores: MutableSet<String?> = mapper.setOf("player1", "scores")
+     * scores.add("100")          // → SQL INSERT IF NOT EXISTS
+     * scores.contains("100")     // → SQL SELECT EXISTS
+     * ```
+     */
+    fun setOf(id: Any, fieldName: String): MutableSet<String?>
+
+    /**
+     * 获取 Set 类型容器字段的数据库代理（通过 Filter 定位父记录）
+     */
+    fun setOf(fieldName: String, filter: Filter.() -> Unit): MutableSet<String?>
 }

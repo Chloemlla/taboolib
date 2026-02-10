@@ -19,8 +19,19 @@ abstract class Container<T : ColumnBuilder>(val host: Host<T>) {
     /** class → ContainerOperator 映射（用于 @LinkTable 级联保存） */
     val classOperatorMap = ConcurrentHashMap<Class<*>, ContainerOperator>()
 
+    /** class → 容器关联表信息列表 */
+    val collectionTableMap = ConcurrentHashMap<Class<*>, List<CollectionTableInfo>>()
+
     /** 创建表 */
     protected abstract fun createTableObject(type: AnalyzedClass, name: String): Table<*, *>
+
+    /** 创建容器类型子表 */
+    protected abstract fun createCollectionTableObject(
+        parentType: AnalyzedClass,
+        parentTableName: String,
+        member: AnalyzedClassMember,
+        childTableName: String
+    ): Table<*, *>
 
     /** 创建表 */
     open fun createTable(type: AnalyzedClass, name: String) {
@@ -34,7 +45,27 @@ abstract class Container<T : ColumnBuilder>(val host: Host<T>) {
             }
         }
         classTableMap[type.clazz] = name
-        val operator = ContainerOperatorImpl(createTableObject(type, name), dataSource, classTableMap = classTableMap, classOperatorMap = classOperatorMap)
+        // 创建容器类型子表
+        val collectionInfos = mutableListOf<CollectionTableInfo>()
+        if (type.hasCollectionMembers) {
+            val primaryMember = type.primaryMember ?: error(
+                "容器类型成员需要主类有 @Id 字段。Collection members require the parent class to have an @Id field."
+            )
+            for (member in type.collectionMembers) {
+                val childTableName = "${name}_${member.name}"
+                val fkColumnName = "parent_${primaryMember.name}"
+                val childTable = createCollectionTableObject(type, name, member, childTableName)
+                collectionInfos += CollectionTableInfo(childTableName, fkColumnName, member, childTable)
+            }
+        }
+        if (collectionInfos.isNotEmpty()) {
+            collectionTableMap[type.clazz] = collectionInfos
+        }
+        val operator = ContainerOperatorImpl(
+            createTableObject(type, name), dataSource,
+            classTableMap = classTableMap, classOperatorMap = classOperatorMap,
+            collectionTableInfos = collectionInfos.ifEmpty { null }
+        )
         map[name] = operator
         classOperatorMap[type.clazz] = operator
     }
@@ -42,6 +73,10 @@ abstract class Container<T : ColumnBuilder>(val host: Host<T>) {
     /** 初始化所有表 */
     open fun init() {
         map.forEach { it.value.table.createTable(dataSource) }
+        // 创建容器子表
+        collectionTableMap.values.forEach { infos ->
+            infos.forEach { it.table.createTable(dataSource) }
+        }
     }
 
     /** 获取路径 */
