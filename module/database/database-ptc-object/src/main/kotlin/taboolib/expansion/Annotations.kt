@@ -2,6 +2,7 @@ package taboolib.expansion
 
 import taboolib.module.database.ColumnTypeSQL
 import taboolib.module.database.ColumnTypeSQLite
+import taboolib.module.database.ColumnTypePostgreSQL
 
 /**
  * 标记数据类的逻辑主键字段。
@@ -158,7 +159,8 @@ annotation class Alias(val value: String)
 @Retention(AnnotationRetention.RUNTIME)
 annotation class ColumnType(
     val sql: ColumnTypeSQL = ColumnTypeSQL.VARCHAR,
-    val sqlite: ColumnTypeSQLite = ColumnTypeSQLite.TEXT
+    val sqlite: ColumnTypeSQLite = ColumnTypeSQLite.TEXT,
+    val postgresql: ColumnTypePostgreSQL = ColumnTypePostgreSQL._DEFAULT
 )
 
 /**
@@ -202,3 +204,23 @@ annotation class ColumnType(
 @Target(AnnotationTarget.FIELD, AnnotationTarget.PROPERTY, AnnotationTarget.VALUE_PARAMETER)
 @Retention(AnnotationRetention.RUNTIME)
 annotation class LinkTable(val value: String)
+
+/**
+ * 指定数据类对应的数据库表名。
+ *
+ * 默认情况下，框架会将数据类的类名从驼峰转为下划线命名作为表名（如 PlayerHome → player_home）。
+ * 使用 @TableName 可以覆盖这一行为，指定自定义表名。
+ *
+ * ```kotlin
+ * @TableName("my_custom_table")
+ * data class PlayerHome(
+ *     @Id val username: String,
+ *     var world: String,
+ * )
+ * ```
+ *
+ * @param value 自定义表名
+ */
+@Target(AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class TableName(val value: String)

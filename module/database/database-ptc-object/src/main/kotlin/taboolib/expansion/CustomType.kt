@@ -4,6 +4,7 @@ import taboolib.module.configuration.Configuration
 import taboolib.module.configuration.Type
 import taboolib.module.database.ColumnTypeSQL
 import taboolib.module.database.ColumnTypeSQLite
+import taboolib.module.database.ColumnTypePostgreSQL
 
 /**
  * TabooLib
@@ -25,9 +26,17 @@ interface CustomType {
     val typeSQLite: ColumnTypeSQLite
         get() = ColumnTypeSQLite.TEXT
 
+    /** 对应 PostgreSQL 类型 */
+    val typePostgreSQL: ColumnTypePostgreSQL
+        get() = ColumnTypePostgreSQL.TEXT
+
     /** 长度 */
     val length: Int
         get() = 512
+
+    /** PostgreSQL 长度 */
+    val lengthPostgreSQL: Int
+        get() = length
 
     /** 类型是否匹配 */
     fun match(value: Any): Boolean {

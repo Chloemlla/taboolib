@@ -1,5 +1,6 @@
 package taboolib.expansion
 
+import taboolib.expansion.AnalyzedClassMember.Companion.resolveTableName
 import taboolib.expansion.AnalyzedClassMember.Companion.toColumnName
 import java.sql.Connection
 
@@ -52,7 +53,7 @@ class TransactionContext internal constructor(
      * @return 事务感知的操作器
      */
     inline fun <reified T> get(): ContainerOperator {
-        return operator(T::class.java.simpleName.toColumnName())
+        return operator(T::class.java.resolveTableName())
     }
 
     /**

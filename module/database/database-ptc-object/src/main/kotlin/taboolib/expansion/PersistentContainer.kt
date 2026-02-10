@@ -2,6 +2,7 @@ package taboolib.expansion
 
 import taboolib.common.io.newFile
 import taboolib.common.platform.function.getDataFolder
+import taboolib.expansion.AnalyzedClassMember.Companion.resolveTableName
 import taboolib.expansion.AnalyzedClassMember.Companion.toColumnName
 import taboolib.library.configuration.ConfigurationSection
 import taboolib.module.configuration.ConfigLoader
@@ -21,11 +22,25 @@ fun dbSection(section: ConfigurationSection, node: String = "database"): Configu
     return section.getConfigurationSection(node) ?: Configuration.empty()
 }
 
-fun db(name: String = "config.yml", node: String = "database", file: String = "data.db"): Any {
+/**
+ * 获取数据库配置源
+ *
+ * @param name 配置文件名
+ * @param node 配置节点路径
+ * @param file SQLite 数据库文件名（当 enable 为 false 时使用）
+ * @param type 数据库类型覆盖（"mysql"、"postgresql"、"sqlite"），为 null 时从配置中读取
+ */
+fun db(name: String = "config.yml", node: String = "database", file: String = "data.db", type: String? = null): Any {
     val conf = ConfigLoader.files[name] ?: return dbFile(file)
     return if (conf.configuration.getBoolean("$node.enable")) {
-        conf.configuration.getConfigurationSection(node) ?: Configuration.empty()
+        val section = conf.configuration.getConfigurationSection(node) ?: Configuration.empty()
+        // 如果指定了 type 参数，将其写入配置节点以便 PersistentContainer 读取
+        if (type != null && section is Configuration) {
+            section["type"] = type
+        }
+        section
     } else {
+        // 如果 type 明确指定为 sqlite，或未启用数据库，使用文件模式
         newFile(getDataFolder(), file)
     }
 }
@@ -67,7 +82,9 @@ class PersistentContainer {
     /**
      * 设置源
      * - 传入文件类型则为 SQLite 模式
-     * - 传入 ConfigurationSection 则读取 SQL 配置
+     * - 传入 ConfigurationSection 则根据 type 字段选择数据库类型（默认 mysql）
+     *   - type: mysql（默认）→ ContainerSQL
+     *   - type: postgresql → ContainerPostgreSQL
      */
     constructor(
         type: Any,
@@ -85,18 +102,34 @@ class PersistentContainer {
             is String -> {
                 ContainerSQLite(newFile(getDataFolder(), type))
             }
-            // SQL 模式
+            // SQL 模式（根据 type 字段区分 MySQL / PostgreSQL）
             is ConfigurationSection -> {
-                ContainerSQL(
-                    type.getString("host", "localhost")!!,
-                    type.getInt("port"),
-                    type.getString("user", "user")!!,
-                    type.getString("password", "user")!!,
-                    type.getString("database", "minecraft")!!,
-                    flags,
-                    clearFlags,
-                    ssl
-                )
+                val dbType = type.getString("type", "mysql")!!.lowercase()
+                when (dbType) {
+                    "postgresql", "pgsql", "pg" -> {
+                        ContainerPostgreSQL(
+                            type.getString("host", "localhost")!!,
+                            type.getInt("port", 5432),
+                            type.getString("user", "postgres")!!,
+                            type.getString("password", "")!!,
+                            type.getString("database", "minecraft")!!,
+                            type.getString("schema", "public")!!,
+                            flags,
+                        )
+                    }
+                    else -> {
+                        ContainerSQL(
+                            type.getString("host", "localhost")!!,
+                            type.getInt("port"),
+                            type.getString("user", "user")!!,
+                            type.getString("password", "user")!!,
+                            type.getString("database", "minecraft")!!,
+                            flags,
+                            clearFlags,
+                            ssl
+                        )
+                    }
+                }
             }
             // 无效类型
             else -> error("Unsupported source type: $type")
@@ -127,12 +160,12 @@ class PersistentContainer {
     /**
      * 从数据类创建容器
      */
-    inline fun <reified T> new(name: String = T::class.java.simpleName.toColumnName()) = new(T::class.java, name)
+    inline fun <reified T> new(name: String = T::class.java.resolveTableName()) = new(T::class.java, name)
 
     /**
      * 从数据类创建容器
      */
-    fun <T> new(type: Class<T>, name: String = type.simpleName.toColumnName()) {
+    fun <T> new(type: Class<T>, name: String = type.resolveTableName()) {
         container.createTable(AnalyzedClass.of(type), name)
     }
 
@@ -147,7 +180,7 @@ class PersistentContainer {
      * 获取控制器
      */
     inline fun <reified T> get(): ContainerOperator {
-        return get(T::class.java.simpleName.toColumnName())
+        return get(T::class.java.resolveTableName())
     }
 
     /**

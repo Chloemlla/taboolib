@@ -3,6 +3,7 @@ package taboolib.expansion
 import taboolib.module.database.Action
 import taboolib.module.database.ActionSelect
 import taboolib.module.database.Filter
+import taboolib.module.database.HostPostgreSQL
 import taboolib.module.database.Table
 import java.sql.ResultSet
 import java.util.*
@@ -545,7 +546,7 @@ abstract class ContainerOperator {
         return when (this) {
             is IndexedEnum -> this.index
             is Enum<*> -> this.name
-            is UUID -> this.toString()
+            is UUID -> if (table.host is HostPostgreSQL) this else this.toString()
             is Char -> this.code
             else -> CustomTypeFactory.getCustomType(this)?.serialize(this) ?: this
         }

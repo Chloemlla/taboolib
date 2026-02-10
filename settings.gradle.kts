@@ -48,6 +48,7 @@ include(
     "module:database:database-orm",
     "module:database:database-alkaid-redis-tool",
     "module:database:database-h2",
+    "module:database:database-postgresql",
 
     // 脚本环境
     "module:script:script-javascript",
