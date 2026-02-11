@@ -252,6 +252,32 @@ class TransactionalDataMapper<T>(
         error("Cannot close container within a transaction")
     }
 
+    // === 容器类型 Accessor ===
+
+    override fun mapOf(id: Any, fieldName: String): MutableMap<String, String?> {
+        return (operator as ContainerOperatorImpl).mapAccessor(id, fieldName)
+    }
+
+    override fun mapOf(fieldName: String, filter: Filter.() -> Unit): MutableMap<String, String?> {
+        return (operator as ContainerOperatorImpl).mapAccessor(fieldName, filter)
+    }
+
+    override fun listOf(id: Any, fieldName: String): MutableList<String?> {
+        return (operator as ContainerOperatorImpl).listAccessor(id, fieldName)
+    }
+
+    override fun listOf(fieldName: String, filter: Filter.() -> Unit): MutableList<String?> {
+        return (operator as ContainerOperatorImpl).listAccessor(fieldName, filter)
+    }
+
+    override fun setOf(id: Any, fieldName: String): MutableSet<String?> {
+        return (operator as ContainerOperatorImpl).setAccessor(id, fieldName)
+    }
+
+    override fun setOf(fieldName: String, filter: Filter.() -> Unit): MutableSet<String?> {
+        return (operator as ContainerOperatorImpl).setAccessor(fieldName, filter)
+    }
+
     // === L2 缓存失效策略 ===
 
     private fun buildCacheKey(method: String, vararg args: Any?): String {

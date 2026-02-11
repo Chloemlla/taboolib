@@ -26,14 +26,15 @@ class ContainerOperatorImpl(
     override val dataSource: DataSource,
     private val sharedConnection: Connection? = null,
     private val classTableMap: Map<Class<*>, String>? = null,
-    private val classOperatorMap: Map<Class<*>, ContainerOperator>? = null
+    private val classOperatorMap: Map<Class<*>, ContainerOperator>? = null,
+    private val collectionTableInfos: List<CollectionTableInfo>? = null
 ) : ContainerOperator() {
 
     /**
      * 创建事务模式的操作器（共享 Connection）
      */
     fun withConnection(connection: Connection): ContainerOperatorImpl {
-        return ContainerOperatorImpl(table, dataSource, connection, classTableMap, classOperatorMap)
+        return ContainerOperatorImpl(table, dataSource, connection, classTableMap, classOperatorMap, collectionTableInfos)
     }
 
     /**
@@ -64,9 +65,8 @@ class ContainerOperatorImpl(
             limit(1)
             where(filter)
         }
-        return executeQuery(action) { rs ->
-            if (rs.next()) typeClass.createInstance<T>(typeClass.read(rs)) else null
-        }
+        val map = executeQuery(action) { rs -> readMap(typeClass, rs) }
+        return resolveOneWithCollections(typeClass, map)
     }
 
     override fun <T> get(type: Class<T>, filter: Filter.() -> Unit): List<T> {
@@ -86,13 +86,8 @@ class ContainerOperatorImpl(
         val action = ActionSelect(table.name).apply {
             where(filter)
         }
-        return executeQuery(action) { rs ->
-            buildList {
-                while (rs.next()) {
-                    add(typeClass.createInstance<T>(typeClass.read(rs)))
-                }
-            }
-        }
+        val maps = executeQuery(action) { rs -> readMaps(typeClass, rs) }
+        return resolveWithCollections(typeClass, maps)
     }
 
     override fun <T> findOne(type: Class<T>, id: Any, filter: Filter.() -> Unit): T? {
@@ -109,9 +104,8 @@ class ContainerOperatorImpl(
                 if (rs.next()) readJoinResult<T>(typeClass, rs) else null
             }
         }
-        return executeQuery(selectById(typeClass, id, filter) { limit(1) }) { rs ->
-            if (rs.next()) typeClass.createInstance<T>(typeClass.read(rs)) else null
-        }
+        val map = executeQuery(selectById(typeClass, id, filter) { limit(1) }) { rs -> readMap(typeClass, rs) }
+        return resolveOneWithCollections(typeClass, map)
     }
 
     override fun <T> find(type: Class<T>, id: Any, filter: Filter.() -> Unit): List<T> {
@@ -131,13 +125,8 @@ class ContainerOperatorImpl(
                 }
             }
         }
-        return executeQuery(selectById(typeClass, id, filter)) { rs ->
-            buildList {
-                while (rs.next()) {
-                    add(typeClass.createInstance<T>(typeClass.read(rs)))
-                }
-            }
-        }
+        val maps = executeQuery(selectById(typeClass, id, filter)) { rs -> readMaps(typeClass, rs) }
+        return resolveWithCollections(typeClass, maps)
     }
 
     override fun <T> sort(type: Class<T>, row: String, limit: Int, filter: Filter.() -> Unit): List<T> {
@@ -161,13 +150,8 @@ class ContainerOperatorImpl(
             limit(limit)
             orderBy(row)
         }
-        return executeQuery(action) { rs ->
-            buildList {
-                while (rs.next()) {
-                    add(typeClass.createInstance<T>(typeClass.read(rs)))
-                }
-            }
-        }
+        val maps = executeQuery(action) { rs -> readMaps(typeClass, rs) }
+        return resolveWithCollections(typeClass, maps)
     }
 
     override fun <T> sortDescending(type: Class<T>, row: String, limit: Int, filter: Filter.() -> Unit): List<T> {
@@ -191,13 +175,8 @@ class ContainerOperatorImpl(
             limit(limit)
             orderBy(row, Order.Type.DESC)
         }
-        return executeQuery(action) { rs ->
-            buildList {
-                while (rs.next()) {
-                    add(typeClass.createInstance<T>(typeClass.read(rs)))
-                }
-            }
-        }
+        val maps = executeQuery(action) { rs -> readMaps(typeClass, rs) }
+        return resolveWithCollections(typeClass, maps)
     }
 
     override fun <T> getPage(type: Class<T>, page: Int, size: Int, filter: Filter.() -> Unit): List<T> {
@@ -221,13 +200,8 @@ class ContainerOperatorImpl(
             limit(size)
             offset((page - 1) * size)
         }
-        return executeQuery(action) { rs ->
-            buildList {
-                while (rs.next()) {
-                    add(typeClass.createInstance<T>(typeClass.read(rs)))
-                }
-            }
-        }
+        val maps = executeQuery(action) { rs -> readMaps(typeClass, rs) }
+        return resolveWithCollections(typeClass, maps)
     }
 
     override fun <T> sortPage(type: Class<T>, row: String, page: Int, size: Int, filter: Filter.() -> Unit): List<T> {
@@ -253,13 +227,8 @@ class ContainerOperatorImpl(
             limit(size)
             offset((page - 1) * size)
         }
-        return executeQuery(action) { rs ->
-            buildList {
-                while (rs.next()) {
-                    add(typeClass.createInstance<T>(typeClass.read(rs)))
-                }
-            }
-        }
+        val maps = executeQuery(action) { rs -> readMaps(typeClass, rs) }
+        return resolveWithCollections(typeClass, maps)
     }
 
     override fun <T> sortDescendingPage(type: Class<T>, row: String, page: Int, size: Int, filter: Filter.() -> Unit): List<T> {
@@ -285,13 +254,8 @@ class ContainerOperatorImpl(
             limit(size)
             offset((page - 1) * size)
         }
-        return executeQuery(action) { rs ->
-            buildList {
-                while (rs.next()) {
-                    add(typeClass.createInstance<T>(typeClass.read(rs)))
-                }
-            }
-        }
+        val maps = executeQuery(action) { rs -> readMaps(typeClass, rs) }
+        return resolveWithCollections(typeClass, maps)
     }
 
     override fun <T> selectCursor(type: Class<T>, filter: Filter.() -> Unit): Cursor<T> {
@@ -347,6 +311,7 @@ class ContainerOperatorImpl(
             }
         }
         executeUpdate(action)
+        insertCollectionData(typeClass, dataList)
     }
 
     override fun insertAndGetKeys(dataList: List<Any>): List<Long> {
@@ -369,7 +334,7 @@ class ContainerOperatorImpl(
                     buildList { while (rs.next()) add(rs.getLong(1)) }
                 }
             }
-        }
+        }.also { insertCollectionData(typeClass, dataList) }
     }
 
     override fun update(data: Any, usePrimaryKey: Boolean, filter: Filter.() -> Unit) {
@@ -392,7 +357,7 @@ class ContainerOperatorImpl(
                 val updateAction = ActionUpdate(table.name).apply {
                     if (name != null) where(name eq value?.value())
                     where(filter)
-                    typeClass.members.filter { !it.isFinal || it.isLinkTable }.forEach { member ->
+                    typeClass.members.filter { (!it.isFinal || it.isLinkTable) && !it.isCollection }.forEach { member ->
                         if (member.isLinkTable) {
                             val linkedObj = typeClass.getValue(data, member)
                             val fkValue = if (linkedObj != null) {
@@ -415,6 +380,7 @@ class ContainerOperatorImpl(
                 conn.executePrepared(insertAction.query, insertAction.elements, Statement.RETURN_GENERATED_KEYS) { executeUpdate() }
             }
         }
+        syncCollectionData(typeClass, data)
     }
 
     override fun updateByKey(data: Any, usePrimaryKey: Boolean) {
@@ -438,7 +404,7 @@ class ContainerOperatorImpl(
         cascadeSaveLinkedObjects(typeClass, dataList)
         val primaryName = typeClass.primaryMemberName ?: error("No primary id found.")
         val keyMembers = typeClass.members.filter { it.isKey }
-        val mutableMembers = typeClass.members.filter { !it.isFinal || it.isLinkTable }
+        val mutableMembers = typeClass.members.filter { (!it.isFinal || it.isLinkTable) && !it.isCollection }
         // 构建唯一标识：@Id + @Key 的值
         fun buildKey(data: Any): String {
             val id = typeClass.getPrimaryMemberValue(data)?.value().toString()
@@ -533,6 +499,7 @@ class ContainerOperatorImpl(
                 }
             }
         }
+        dataList.forEach { data -> syncCollectionData(typeClass, data) }
     }
 
     /**
@@ -553,7 +520,7 @@ class ContainerOperatorImpl(
         primaryName: String,
         keyMembers: List<AnalyzedClassMember>
     ): String {
-        val mutableMembers = typeClass.members.filter { !it.isFinal || it.isLinkTable }
+        val mutableMembers = typeClass.members.filter { (!it.isFinal || it.isLinkTable) && !it.isCollection }
         val setClause = mutableMembers.joinToString(", ") { member ->
             if (member.isLinkTable) "${member.linkTableColumn!!.asFormattedColumnName()} = ?" else "${member.name.asFormattedColumnName()} = ?"
         }
@@ -567,6 +534,7 @@ class ContainerOperatorImpl(
     override fun <T> delete(type: Class<T>, id: Any, filter: Filter.() -> Unit) {
         val typeClass = AnalyzedClass.of(type)
         val name = typeClass.primaryMemberName ?: error("No primary id found.")
+        deleteCollectionDataByFk(id)
         val action = ActionDelete(table.name).apply {
             where(name eq id.value())
             where(filter)
@@ -612,13 +580,8 @@ class ContainerOperatorImpl(
             }
         }
         val action = selectByKey(typeClass, data, usePrimaryKey)
-        return executeQuery(action) { rs ->
-            buildList {
-                while (rs.next()) {
-                    add(typeClass.createInstance<T>(typeClass.read(rs)))
-                }
-            }
-        }
+        val maps = executeQuery(action) { rs -> readMaps(typeClass, rs) }
+        return resolveWithCollections(typeClass, maps)
     }
 
     override fun <T> findOneByKey(type: Class<T>, data: Any, usePrimaryKey: Boolean): T? {
@@ -641,9 +604,8 @@ class ContainerOperatorImpl(
             }
         }
         val action = selectByKey(typeClass, data, usePrimaryKey) { limit(1) }
-        return executeQuery(action) { rs ->
-            if (rs.next()) typeClass.createInstance<T>(typeClass.read(rs)) else null
-        }
+        val map = executeQuery(action) { rs -> readMap(typeClass, rs) }
+        return resolveOneWithCollections(typeClass, map)
     }
 
     override fun <T> hasByKey(type: Class<T>, data: Any, usePrimaryKey: Boolean): Boolean {
@@ -683,9 +645,8 @@ class ContainerOperatorImpl(
             where("id" eq rowId)
             limit(1)
         }
-        return executeQuery(action) { rs ->
-            if (rs.next()) typeClass.createInstance<T>(typeClass.read(rs)) else null
-        }
+        val map = executeQuery(action) { rs -> readMap(typeClass, rs) }
+        return resolveOneWithCollections(typeClass, map)
     }
 
     override fun deleteByRowId(rowId: Long) {
@@ -717,19 +678,15 @@ class ContainerOperatorImpl(
         val action = ActionSelect(table.name).apply {
             where { primaryName inside ids.map { it.value() }.toTypedArray() }
         }
-        return executeQuery(action) { rs ->
-            buildList {
-                while (rs.next()) {
-                    add(typeClass.createInstance<T>(typeClass.read(rs)))
-                }
-            }
-        }
+        val maps = executeQuery(action) { rs -> readMaps(typeClass, rs) }
+        return resolveWithCollections(typeClass, maps)
     }
 
     override fun <T> deleteByIds(type: Class<T>, ids: List<Any>) {
         if (ids.isEmpty()) return
         val typeClass = AnalyzedClass.of(type)
         val name = typeClass.primaryMemberName ?: error("No primary id found.")
+        ids.forEach { deleteCollectionDataByFk(it) }
         val action = ActionDelete(table.name).apply {
             where { name inside ids.map { it.value() }.toTypedArray() }
         }
@@ -739,7 +696,7 @@ class ContainerOperatorImpl(
     override fun updateBatch(dataList: List<Any>) {
         if (dataList.isEmpty()) return
         val typeClass = AnalyzedClass.of(dataList.first().javaClass)
-        val mutableMembers = typeClass.members.filter { !it.isFinal || it.isLinkTable }
+        val mutableMembers = typeClass.members.filter { (!it.isFinal || it.isLinkTable) && !it.isCollection }
         if (mutableMembers.isEmpty()) error("No mutable field found.")
         cascadeSaveLinkedObjects(typeClass, dataList)
         val primaryName = typeClass.primaryMemberName ?: error("No primary id found.")
@@ -770,6 +727,7 @@ class ContainerOperatorImpl(
                 stmt.executeBatch()
             }
         }
+        dataList.forEach { data -> syncCollectionData(typeClass, data) }
     }
 
     // === 自定义 SQL ===
@@ -833,7 +791,7 @@ class ContainerOperatorImpl(
      * 获取实际列名列表（@LinkTable 用 FK 列名）
      */
     private fun getColumnNames(typeClass: AnalyzedClass): List<String> {
-        return typeClass.members.map { member ->
+        return typeClass.members.filter { !it.isCollection }.map { member ->
             if (member.isLinkTable) member.linkTableColumn!! else member.name
         }
     }
@@ -842,7 +800,7 @@ class ContainerOperatorImpl(
      * 获取实际列值列表（@LinkTable 提取 FK 值）
      */
     private fun getColumnValues(typeClass: AnalyzedClass, data: Any): List<Any?> {
-        return typeClass.members.map { member ->
+        return typeClass.members.filter { !it.isCollection }.map { member ->
             if (member.isLinkTable) {
                 val linkedObj = typeClass.getValue(data, member)
                 if (linkedObj != null) {
@@ -1107,6 +1065,344 @@ class ContainerOperatorImpl(
             is IndexedEnum -> value.index
             is Enum<*> -> value.name
             else -> value
+        }
+    }
+
+    // === 容器类型（List/Set/Map）两阶段读取辅助 ===
+
+    /**
+     * Phase 1：从 ResultSet 读取单条记录到 Map（在连接内执行）
+     */
+    private fun readMap(typeClass: AnalyzedClass, rs: ResultSet): MutableMap<String, Any?>? {
+        return if (rs.next()) typeClass.read(rs).toMutableMap() else null
+    }
+
+    /**
+     * Phase 1：从 ResultSet 读取所有记录到 Map 列表（在连接内执行）
+     */
+    private fun readMaps(typeClass: AnalyzedClass, rs: ResultSet): List<MutableMap<String, Any?>> {
+        return buildList {
+            while (rs.next()) {
+                add(typeClass.read(rs).toMutableMap())
+            }
+        }
+    }
+
+    /**
+     * Phase 2：将单个 Map 转换为实例，并加载容器数据（连接已释放）
+     */
+    private fun <T> resolveOneWithCollections(typeClass: AnalyzedClass, map: MutableMap<String, Any?>?): T? {
+        if (map == null) return null
+        if (typeClass.hasCollectionMembers && !collectionTableInfos.isNullOrEmpty()) {
+            loadCollections(typeClass, listOf(map))
+        }
+        return typeClass.createInstance(map)
+    }
+
+    /**
+     * Phase 2：将 Map 列表转换为实例列表，并批量加载容器数据（连接已释放）
+     */
+    private fun <T> resolveWithCollections(typeClass: AnalyzedClass, maps: List<MutableMap<String, Any?>>): List<T> {
+        if (maps.isNotEmpty() && typeClass.hasCollectionMembers && !collectionTableInfos.isNullOrEmpty()) {
+            loadCollections(typeClass, maps)
+        }
+        return maps.map { typeClass.createInstance(it) }
+    }
+
+    // === 容器类型（List/Set/Map）关联表操作 ===
+
+    /**
+     * 查找容器成员对应的 CollectionTableInfo
+     */
+    private fun findCollectionTableInfo(member: AnalyzedClassMember): CollectionTableInfo? {
+        return collectionTableInfos?.firstOrNull { it.member === member }
+    }
+
+    /**
+     * 插入容器数据（批量）
+     */
+    private fun insertCollectionData(typeClass: AnalyzedClass, dataList: List<Any>) {
+        if (collectionTableInfos.isNullOrEmpty() || !typeClass.hasCollectionMembers) return
+        dataList.forEach { data -> syncCollectionData(typeClass, data) }
+    }
+
+    /**
+     * 同步单条记录的容器数据（先删后插）
+     */
+    private fun syncCollectionData(typeClass: AnalyzedClass, data: Any) {
+        if (collectionTableInfos.isNullOrEmpty() || !typeClass.hasCollectionMembers) return
+        val parentId = typeClass.getPrimaryMemberValue(data)?.value() ?: return
+        typeClass.collectionMembers.forEach { member ->
+            val info = findCollectionTableInfo(member) ?: return@forEach
+            val collection = typeClass.getValue(data, member)
+            deleteCollectionByFk(info, parentId)
+            if (collection != null) {
+                insertCollectionValues(info, member, parentId, collection)
+            }
+        }
+    }
+
+    /**
+     * 删除容器子表中指定 FK 的所有数据
+     */
+    private fun deleteCollectionByFk(info: CollectionTableInfo, parentId: Any) {
+        setupQuoter()
+        val sql = "DELETE FROM ${info.tableName.asFormattedColumnName()} WHERE ${info.fkColumnName.asFormattedColumnName()} = ?"
+        withConnection { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, convertParam(parentId))
+                stmt.executeUpdate()
+            }
+        }
+    }
+
+    /**
+     * 按 FK 值批量删除容器子表数据
+     */
+    private fun deleteCollectionDataByFk(parentId: Any) {
+        if (collectionTableInfos.isNullOrEmpty()) return
+        collectionTableInfos.forEach { info: CollectionTableInfo ->
+            deleteCollectionByFk(info, parentId.value())
+        }
+    }
+
+    /**
+     * 插入容器值到子表
+     */
+    private fun insertCollectionValues(info: CollectionTableInfo, member: AnalyzedClassMember, parentId: Any, collection: Any) {
+        setupQuoter()
+        when {
+            member.isMap -> {
+                val map = collection as? Map<*, *> ?: return
+                if (map.isEmpty()) return
+                val sql = "INSERT INTO ${info.tableName.asFormattedColumnName()} (${info.fkColumnName.asFormattedColumnName()}, ${"map_key".asFormattedColumnName()}, ${"map_value".asFormattedColumnName()}) VALUES (?, ?, ?)"
+                withConnection { conn ->
+                    conn.prepareStatement(sql).use { stmt ->
+                        map.forEach { (k, v) ->
+                            stmt.setObject(1, convertParam(parentId))
+                            stmt.setObject(2, k?.toString())
+                            stmt.setObject(3, v?.toString())
+                            stmt.addBatch()
+                        }
+                        stmt.executeBatch()
+                    }
+                }
+            }
+            member.isList -> {
+                val list = collection as? List<*> ?: return
+                if (list.isEmpty()) return
+                val sql = "INSERT INTO ${info.tableName.asFormattedColumnName()} (${info.fkColumnName.asFormattedColumnName()}, ${"value".asFormattedColumnName()}, ${"sort_order".asFormattedColumnName()}) VALUES (?, ?, ?)"
+                withConnection { conn ->
+                    conn.prepareStatement(sql).use { stmt ->
+                        list.forEachIndexed { index, v ->
+                            stmt.setObject(1, convertParam(parentId))
+                            stmt.setObject(2, v?.toString())
+                            stmt.setObject(3, index)
+                            stmt.addBatch()
+                        }
+                        stmt.executeBatch()
+                    }
+                }
+            }
+            member.isSet -> {
+                val set = collection as? Set<*> ?: return
+                if (set.isEmpty()) return
+                val sql = "INSERT INTO ${info.tableName.asFormattedColumnName()} (${info.fkColumnName.asFormattedColumnName()}, ${"value".asFormattedColumnName()}) VALUES (?, ?)"
+                withConnection { conn ->
+                    conn.prepareStatement(sql).use { stmt ->
+                        set.forEach { v ->
+                            stmt.setObject(1, convertParam(parentId))
+                            stmt.setObject(2, v?.toString())
+                            stmt.addBatch()
+                        }
+                        stmt.executeBatch()
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 批量加载容器数据并注入到结果 map 中
+     */
+    private fun loadCollections(typeClass: AnalyzedClass, results: List<MutableMap<String, Any?>>) {
+        if (collectionTableInfos.isNullOrEmpty() || !typeClass.hasCollectionMembers) return
+        val primaryName = typeClass.primaryMemberName ?: return
+        val ids = results.mapNotNull { it[primaryName] }
+        if (ids.isEmpty()) return
+        setupQuoter()
+        typeClass.collectionMembers.forEach { member ->
+            val info = findCollectionTableInfo(member) ?: return@forEach
+            val collectionData = batchLoadCollection(info, member, ids)
+            results.forEach { map ->
+                val id = map[primaryName]
+                map[member.name] = collectionData[id?.toString()] ?: emptyCollection(member)
+            }
+        }
+    }
+
+    /**
+     * 批量查询容器子表数据
+     */
+    private fun batchLoadCollection(
+        info: CollectionTableInfo,
+        member: AnalyzedClassMember,
+        ids: List<Any>
+    ): Map<String, Any> {
+        val result = mutableMapOf<String, Any>()
+        val idArray = ids.map { convertParam(it)!! }.toTypedArray()
+        val placeholders = idArray.joinToString(", ") { "?" }
+        val orderClause = if (member.isList) " ORDER BY ${"sort_order".asFormattedColumnName()}" else ""
+        val sql = "SELECT * FROM ${info.tableName.asFormattedColumnName()} WHERE ${info.fkColumnName.asFormattedColumnName()} IN ($placeholders)$orderClause"
+        withConnection { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                idArray.forEachIndexed { i, v -> stmt.setObject(i + 1, v) }
+                stmt.executeQuery().use { rs ->
+                    when {
+                        member.isMap -> {
+                            while (rs.next()) {
+                                val fk = rs.getObject(info.fkColumnName)?.toString() ?: continue
+                                val key = rs.getString("map_key")
+                                val value = rs.getString("map_value")
+                                @Suppress("UNCHECKED_CAST")
+                                val map = result.getOrPut(fk) { mutableMapOf<String, String?>() } as MutableMap<String, String?>
+                                map[key] = value
+                            }
+                        }
+                        member.isList -> {
+                            while (rs.next()) {
+                                val fk = rs.getObject(info.fkColumnName)?.toString() ?: continue
+                                val value = rs.getString("value")
+                                @Suppress("UNCHECKED_CAST")
+                                val list = result.getOrPut(fk) { mutableListOf<String?>() } as MutableList<String?>
+                                list.add(value)
+                            }
+                        }
+                        member.isSet -> {
+                            while (rs.next()) {
+                                val fk = rs.getObject(info.fkColumnName)?.toString() ?: continue
+                                val value = rs.getString("value")
+                                @Suppress("UNCHECKED_CAST")
+                                val set = result.getOrPut(fk) { mutableSetOf<String?>() } as MutableSet<String?>
+                                set.add(value)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    /**
+     * 创建空容器
+     */
+    private fun emptyCollection(member: AnalyzedClassMember): Any {
+        return when {
+            member.isList -> emptyList<Any>()
+            member.isSet -> emptySet<Any>()
+            member.isMap -> emptyMap<Any, Any>()
+            else -> error("Not a collection type")
+        }
+    }
+
+    // === 容器类型 Accessor 工厂方法 ===
+
+    /**
+     * 通过父记录 @Id 值获取 Map 类型字段的数据库代理
+     *
+     * @param id 父记录的 @Id 值
+     * @param fieldName 容器字段名（支持属性名和列名匹配）
+     * @return [DatabaseMap] 代理对象
+     */
+    fun mapAccessor(id: Any, fieldName: String): DatabaseMap {
+        val info = resolveCollectionTableInfo(fieldName) { it.isMap }
+        return DatabaseMap(dataSource, info, id.value(), sharedConnection)
+    }
+
+    /**
+     * 通过 Filter 查找父记录，返回 Map 类型字段的数据库代理
+     */
+    fun mapAccessor(fieldName: String, filter: Filter.() -> Unit): DatabaseMap {
+        val info = resolveCollectionTableInfo(fieldName) { it.isMap }
+        val parentId = resolveParentId(filter)
+        return DatabaseMap(dataSource, info, parentId, sharedConnection)
+    }
+
+    /**
+     * 通过父记录 @Id 值获取 List 类型字段的数据库代理
+     *
+     * @param id 父记录的 @Id 值
+     * @param fieldName 容器字段名（支持属性名和列名匹配）
+     * @return [DatabaseList] 代理对象
+     */
+    fun listAccessor(id: Any, fieldName: String): DatabaseList {
+        val info = resolveCollectionTableInfo(fieldName) { it.isList }
+        return DatabaseList(dataSource, info, id.value(), sharedConnection)
+    }
+
+    /**
+     * 通过 Filter 查找父记录，返回 List 类型字段的数据库代理
+     */
+    fun listAccessor(fieldName: String, filter: Filter.() -> Unit): DatabaseList {
+        val info = resolveCollectionTableInfo(fieldName) { it.isList }
+        val parentId = resolveParentId(filter)
+        return DatabaseList(dataSource, info, parentId, sharedConnection)
+    }
+
+    /**
+     * 通过父记录 @Id 值获取 Set 类型字段的数据库代理
+     *
+     * @param id 父记录的 @Id 值
+     * @param fieldName 容器字段名（支持属性名和列名匹配）
+     * @return [DatabaseSet] 代理对象
+     */
+    fun setAccessor(id: Any, fieldName: String): DatabaseSet {
+        val info = resolveCollectionTableInfo(fieldName) { it.isSet }
+        return DatabaseSet(dataSource, info, id.value(), sharedConnection)
+    }
+
+    /**
+     * 通过 Filter 查找父记录，返回 Set 类型字段的数据库代理
+     */
+    fun setAccessor(fieldName: String, filter: Filter.() -> Unit): DatabaseSet {
+        val info = resolveCollectionTableInfo(fieldName) { it.isSet }
+        val parentId = resolveParentId(filter)
+        return DatabaseSet(dataSource, info, parentId, sharedConnection)
+    }
+
+    /**
+     * 根据字段名查找 CollectionTableInfo
+     *
+     * @param fieldName 字段名（匹配 propertyName 或 name）
+     * @param typeCheck 容器类型检查（isMap/isList/isSet）
+     */
+    private fun resolveCollectionTableInfo(fieldName: String, typeCheck: (AnalyzedClassMember) -> Boolean): CollectionTableInfo {
+        if (collectionTableInfos.isNullOrEmpty()) {
+            error("No collection table info found. Ensure the class has collection members.")
+        }
+        return collectionTableInfos.firstOrNull { info ->
+            (info.member.propertyName == fieldName || info.member.name == fieldName) && typeCheck(info.member)
+        } ?: error("Collection field '$fieldName' not found or type mismatch.")
+    }
+
+    /**
+     * 通过 Filter 查询父记录 @Id 值
+     */
+    private fun resolveParentId(filter: Filter.() -> Unit): Any {
+        val action = ActionSelect(table.name).apply {
+            limit(1)
+            where(filter)
+        }
+        return executeQuery(action) { rs ->
+            if (rs.next()) {
+                val primaryName = collectionTableInfos?.firstOrNull()?.fkColumnName
+                    ?.removePrefix("parent_")
+                    ?: error("Cannot determine primary key column.")
+                rs.getObject(primaryName) ?: error("Parent record primary key is null.")
+            } else {
+                throw NoSuchElementException("No parent record found matching the given filter.")
+            }
         }
     }
 }
