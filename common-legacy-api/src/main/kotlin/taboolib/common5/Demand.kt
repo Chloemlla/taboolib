@@ -13,8 +13,8 @@ package taboolib.common5
  * 2. 以 "-" 开头的参数被视为键（key），其后的参数被视为值（value）
  * 3. 以 "--" 开头的参数被视为标签（tag）
  * 4. 不带前缀的参数被视为普通参数（args）
- * 5. 支持使用双引号（"）包裹包含空格的字符串参数
- * 6. 使用反斜杠（\）转义引号（\"）
+ * 5. 支持使用双引号（"）或单引号（'）包裹包含空格的字符串参数
+ * 6. 使用反斜杠（\）转义引号（\" 或 \'）
  *
  * 使用示例：
  * ```
@@ -57,6 +57,11 @@ class Demand(source: String) {
         IN_QUOTES,   // 在引号内
         AFTER_KEY    // 键之后，等待值
     }
+
+    /** 当前引号字符（" 或 '） */
+    private var currentQuote = '"'
+
+    private fun isQuoteChar(ch: Char): Boolean = ch == '"' || ch == '\''
 
     init {
         parse()
@@ -129,8 +134,9 @@ class Demand(source: String) {
                 setState(ParseState.AFTER_KEY)
             }
             // 处理带引号的参数
-            ch == '"' -> {
-                if (arg.endsWith('"') && !arg.endsWith("\\\"") && arg.length > 1) {
+            isQuoteChar(ch) -> {
+                currentQuote = ch
+                if (arg.endsWith(ch) && !arg.endsWith("\\$ch") && arg.length > 1) {
                     // 单个参数中的完整引号字符串
                     args.add(arg.substring(1, arg.length - 1).unescapeQuotes())
                 } else {
@@ -155,7 +161,7 @@ class Demand(source: String) {
         currentKey: String?,
         setState: (ParseState) -> Unit
     ) {
-        if (arg.endsWith('"') && !arg.endsWith("\\\"")) {
+        if (arg.endsWith(currentQuote) && !arg.endsWith("\\$currentQuote")) {
             // 引号结束
             buffer.add(arg.substring(0, arg.length - 1))
             val value = joinBuffer(buffer).unescapeQuotes()
@@ -190,8 +196,9 @@ class Demand(source: String) {
         }
         when {
             // 处理带引号的值
-            arg.startsWith('"') -> {
-                if (arg.endsWith('"') && !arg.endsWith("\\\"") && arg.length > 1) {
+            arg.isNotEmpty() && isQuoteChar(arg[0]) -> {
+                currentQuote = arg[0]
+                if (arg.endsWith(currentQuote) && !arg.endsWith("\\$currentQuote") && arg.length > 1) {
                     // 单个参数中的完整引号字符串
                     dataMap[currentKey] = arg.substring(1, arg.length - 1).unescapeQuotes()
                     setKey(null)
@@ -255,7 +262,7 @@ class Demand(source: String) {
      * 去除字符串中的转义引号
      */
     private fun String.unescapeQuotes(): String {
-        return this.replace("\\\"", "\"")
+        return this.replace("\\\"", "\"").replace("\\'", "'")
     }
 
     fun get(key: List<String>, def: String? = null): String? {

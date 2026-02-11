@@ -45,13 +45,39 @@ class DemandTest {
     @DisplayName("测试带引号的字符串解析")
     fun testQuotedStringParsing() {
         val demand = Demand("command arg1 \"arg with spaces\" -key1 \"value with spaces\"")
-        
+
         // 测试带空格的键值对
         assertEquals("value with spaces", demand.get("key1"))
-        
+
         // 测试带空格的普通参数
         assertEquals("arg1", demand.get(0))
         assertEquals("arg with spaces", demand.get(1))
+    }
+
+    @Test
+    @DisplayName("测试单引号字符串解析")
+    fun testSingleQuotedStringParsing() {
+        val demand = Demand("command arg1 'arg with spaces' -key1 'value with spaces'")
+        assertEquals("value with spaces", demand.get("key1"))
+        assertEquals("arg1", demand.get(0))
+        assertEquals("arg with spaces", demand.get(1))
+    }
+
+    @Test
+    @DisplayName("测试单引号转义字符处理")
+    fun testSingleQuoteEscapeCharacters() {
+        val demand = Demand("command -key 'value with \\'quotes\\''")
+        assertEquals("value with 'quotes'", demand.get("key"))
+    }
+
+    @Test
+    @DisplayName("测试单引号和双引号混合使用")
+    fun testMixedQuotes() {
+        val demand = Demand("command -key1 \"double quoted\" -key2 'single quoted' 'arg with spaces' \"another arg\"")
+        assertEquals("double quoted", demand.get("key1"))
+        assertEquals("single quoted", demand.get("key2"))
+        assertEquals("arg with spaces", demand.get(0))
+        assertEquals("another arg", demand.get(1))
     }
     
     @Test
