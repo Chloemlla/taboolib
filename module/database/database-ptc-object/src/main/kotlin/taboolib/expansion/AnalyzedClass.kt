@@ -19,33 +19,49 @@ import java.util.concurrent.ConcurrentHashMap
 @Suppress("UNCHECKED_CAST")
 class AnalyzedClass private constructor(val clazz: Class<*>) {
 
-    /** 主构造器 */
-    private val primaryConstructor = clazz.declaredConstructors.firstOrNull { it.parameters.isNotEmpty() } ?: error(
-        """
-        未找到 $clazz 的主构造器。
-        No primary constructor found for $clazz
-        """.t()
-    )
+    /** 主构造器（可能为 null，表示使用字段扫描模式） */
+    private val primaryConstructor = clazz.declaredConstructors.firstOrNull { it.parameters.isNotEmpty() }
 
-    /** 成员列表 */
-    private val memberProperties = clazz.declaredFields.associateBy { it.name }
+    /** 是否使用字段扫描模式（无带参构造器） */
+    private val fieldScanMode = primaryConstructor == null
+
+    /** 无参构造器（字段扫描模式使用） */
+    private val noArgConstructor = if (fieldScanMode) {
+        (clazz.declaredConstructors.firstOrNull { it.parameters.isEmpty() }
+            ?: error(
+                """
+                未找到 $clazz 的构造器。
+                No constructor found for $clazz
+                """.t()
+            )).also { it.isAccessible = true }
+    } else null
+
+    /** 成员列表（包含继承字段） */
+    private val memberProperties = collectAllFields(clazz)
 
     private val mps = memberProperties.entries.toMutableList()
 
     /** 成员列表 */
-    val members = primaryConstructor.parameters.map {
-        // 优先按名称匹配，找不到再按类型兜底
-        val entry = mps.firstOrNull { e -> e.key == it.name }
-            ?: mps.firstOrNull { e -> e.value.type == it.type }
-            ?: error(
-                """
-                在 $clazz 类中，未找到成员 ${it.name}。
-                No member found for $it in $clazz
-                """.t()
-            )
-        mps.remove(entry)
-        val final = entry.value.modifiers and 16 != 0
-        AnalyzedClassMember(validation(it), entry.value.name, final)
+    val members = if (fieldScanMode) {
+        // 字段扫描模式：从所有非 static、非 synthetic 字段构建
+        memberProperties.values.map { field ->
+            val isFinal = field.modifiers and java.lang.reflect.Modifier.FINAL != 0
+            AnalyzedClassMember.fromField(field, field.name, isFinal)
+        }
+    } else {
+        primaryConstructor!!.parameters.map {
+            val entry = mps.firstOrNull { e -> e.key == it.name }
+                ?: mps.firstOrNull { e -> e.value.type == it.type }
+                ?: error(
+                    """
+                    在 $clazz 类中，未找到成员 ${it.name}。
+                    No member found for $it in $clazz
+                    """.t()
+                )
+            mps.remove(entry)
+            val final = entry.value.modifiers and 16 != 0
+            AnalyzedClassMember.fromParameter(validation(it), entry.value.name, final)
+        }
     }
 
     /** 主成员 */
@@ -247,18 +263,31 @@ class AnalyzedClass private constructor(val clazz: Class<*>) {
     }
 
     /** 创建实例 */
+    @Suppress("UNCHECKED_CAST")
     fun <T> createInstance(map: Map<String, Any?>): T {
-        return if (wrapperFunction != null) {
+        val result = if (wrapperFunction != null) {
             wrapperFunction.invoke(wrapperObjectInstance, BundleMapImpl(map)) ?: error(
                 """
                 无法创建 $clazz 实例。
                 Failed to create instance for $clazz
                 """.t()
             )
+        } else if (fieldScanMode) {
+            // 字段扫描模式：无参构造 + 反射设值
+            val instance = noArgConstructor!!.newInstance()
+            members.forEach { member ->
+                val field = memberProperties[member.propertyName] ?: return@forEach
+                field.isAccessible = true
+                val value = map[member.name]
+                if (value != null || !field.type.isPrimitive) {
+                    field.set(instance, value)
+                }
+            }
+            instance
         } else {
             val args = members.map { map[it.name] }
             try {
-                primaryConstructor.newInstance(*args.toTypedArray())
+                primaryConstructor!!.newInstance(*args.toTypedArray())
             } catch (ex: Throwable) {
                 error(
                     """
@@ -267,7 +296,8 @@ class AnalyzedClass private constructor(val clazz: Class<*>) {
                     """.t()
                 )
             }
-        } as T
+        }
+        return result as T
     }
 
     /** 验证参数 */
@@ -292,6 +322,21 @@ class AnalyzedClass private constructor(val clazz: Class<*>) {
             cached[clazz]?.let { return it }
             val instance = AnalyzedClass(clazz)
             return cached.putIfAbsent(clazz, instance) ?: instance
+        }
+
+        /** 收集类及其父类的所有实例字段（排除 static/synthetic） */
+        private fun collectAllFields(clazz: Class<*>): Map<String, java.lang.reflect.Field> {
+            val fields = LinkedHashMap<String, java.lang.reflect.Field>()
+            var current: Class<*>? = clazz
+            while (current != null && current != Any::class.java) {
+                for (field in current.declaredFields) {
+                    if (java.lang.reflect.Modifier.isStatic(field.modifiers)) continue
+                    if (field.isSynthetic) continue
+                    fields.putIfAbsent(field.name, field)
+                }
+                current = current.superclass
+            }
+            return fields
         }
     }
 }

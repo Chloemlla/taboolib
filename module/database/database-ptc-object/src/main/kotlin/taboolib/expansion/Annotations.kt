@@ -34,6 +34,11 @@ import taboolib.module.database.ColumnTypePostgreSQL
  *     var world: String,
  * )
  * ```
+ *
+ * **兼容性说明：** 同时支持 FIELD、PROPERTY 和 VALUE_PARAMETER 三种注解目标。
+ * Kotlin 对 body property 上的注解优先放到 property 目标（Java Field 反射不可见），
+ * 框架通过 [AnalyzedClassMember] 的 `FieldWithPropertyAnnotations` 兜底检查
+ * Kotlin 生成的 `$annotations` 合成方法，确保 `@Id var x` 和 `@field:Id var x` 均可识别。
  */
 @Target(AnnotationTarget.FIELD, AnnotationTarget.PROPERTY, AnnotationTarget.VALUE_PARAMETER)
 @Retention(AnnotationRetention.RUNTIME)

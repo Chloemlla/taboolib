@@ -4,8 +4,51 @@ import taboolib.common.reflect.getAnnotationIfPresent
 import taboolib.module.database.ColumnTypeSQL
 import taboolib.module.database.ColumnTypeSQLite
 import taboolib.module.database.ColumnTypePostgreSQL
+import java.lang.reflect.AnnotatedElement
+import java.lang.reflect.Field
 import java.lang.reflect.Parameter
 import java.lang.reflect.ParameterizedType
+
+/**
+ * 包装 Field，同时检查 Kotlin property 注解。
+ *
+ * Kotlin 对 body property 上的注解，如果注解同时支持 FIELD 和 PROPERTY 目标，
+ * 可能会被放到 property 目标上（而非 field），此时 Java 的 Field.getAnnotation() 无法读取。
+ * 本类通过检查 Kotlin 编译器生成的 `<name>$annotations` 合成方法来兜底获取 property 注解。
+ */
+private class FieldWithPropertyAnnotations(private val field: Field) : AnnotatedElement {
+
+    /** 从 Kotlin 生成的 $annotations 合成方法中获取 property 注解 */
+    private val propertyAnnotations: Array<Annotation> by lazy {
+        try {
+            // Kotlin 生成的合成方法名格式: get<PropertyName>$annotations
+            val getterName = "get${field.name.replaceFirstChar { it.uppercase() }}\$annotations"
+            val method = field.declaringClass.getDeclaredMethod(getterName)
+            method.isAccessible = true
+            method.annotations
+        } catch (_: Throwable) {
+            emptyArray()
+        }
+    }
+
+    override fun <T : Annotation> getAnnotation(annotationClass: Class<T>): T? {
+        field.getAnnotation(annotationClass)?.let { return it }
+        @Suppress("UNCHECKED_CAST")
+        return propertyAnnotations.firstOrNull { annotationClass.isInstance(it) } as? T
+    }
+
+    override fun getAnnotations(): Array<Annotation> {
+        return field.annotations + propertyAnnotations
+    }
+
+    override fun getDeclaredAnnotations(): Array<Annotation> {
+        return field.declaredAnnotations + propertyAnnotations
+    }
+
+    override fun isAnnotationPresent(annotationClass: Class<out Annotation>): Boolean {
+        return field.isAnnotationPresent(annotationClass) || propertyAnnotations.any { annotationClass.isInstance(it) }
+    }
+}
 
 /**
  * TabooLib
@@ -14,7 +57,7 @@ import java.lang.reflect.ParameterizedType
  * @author 坏黑
  * @since 2023/3/29 11:28
  */
-class AnalyzedClassMember(private val root: Parameter, name: String, val isFinal: Boolean) {
+class AnalyzedClassMember(private val root: AnnotatedElement, name: String, val isFinal: Boolean, val returnType: Class<*>, genericType: java.lang.reflect.Type?) {
 
     /** 名称 */
     val name = root.findAnnotation<Alias>()?.value ?: name.toColumnName()
@@ -22,8 +65,8 @@ class AnalyzedClassMember(private val root: Parameter, name: String, val isFinal
     /** 属性名称 */
     val propertyName: String = name
 
-    /** 返回类型 */
-    val returnType: Class<*> = root.type
+    /** 泛型参数化类型 */
+    val parameterizedType: ParameterizedType? = genericType as? ParameterizedType
 
     /** 是否为 ID 键 */
     val isPrimary = root.findAnnotation<Id>() != null
@@ -60,11 +103,6 @@ class AnalyzedClassMember(private val root: Parameter, name: String, val isFinal
 
     /** 关联的 data class 类型 */
     val linkTableClass: Class<*>? = if (isLinkTable) returnType else null
-
-    /** 泛型参数化类型 */
-    val parameterizedType: ParameterizedType? = root.parameterizedType.let {
-        it as? ParameterizedType
-    }
 
     /** 是否为 List 类型 */
     val isList: Boolean
@@ -195,8 +233,18 @@ class AnalyzedClassMember(private val root: Parameter, name: String, val isFinal
         }
 
         /** 获取注解 */
-        inline fun <reified T : Annotation> Parameter.findAnnotation(): T? {
+        inline fun <reified T : Annotation> AnnotatedElement.findAnnotation(): T? {
             return getAnnotationIfPresent(T::class.java)
+        }
+
+        /** 从构造器参数创建 */
+        fun fromParameter(param: Parameter, name: String, isFinal: Boolean): AnalyzedClassMember {
+            return AnalyzedClassMember(param, name, isFinal, param.type, param.parameterizedType)
+        }
+
+        /** 从字段创建（同时检查 Kotlin property 注解） */
+        fun fromField(field: Field, name: String, isFinal: Boolean): AnalyzedClassMember {
+            return AnalyzedClassMember(FieldWithPropertyAnnotations(field), name, isFinal, field.type, field.genericType)
         }
 
         /** 判断是否为基础类型（可直接映射到数据库列的类型） */
