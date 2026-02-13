@@ -36,14 +36,14 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * 玩家记分板缓存
  */
-private val playerScoreboardMap = ConcurrentHashMap<UUID, PlayerScoreboard>()
+private val playerScoreboardMap = PlayerSessionMap<PlayerScoreboard>()
 
 /**
  * 发送记分板数据包
  * @param content 记分板内容（设置为空时注销记分板）
  */
 fun Player.sendScoreboard(vararg content: String) {
-    val scoreboard = playerScoreboardMap.getOrPut(uniqueId) { PlayerScoreboard(this) }
+    val scoreboard = playerScoreboardMap.getOrCreate(uniqueId) { PlayerScoreboard(this) } ?: return
     if (content.isEmpty()) {
         scoreboard.sendContent(emptyList())
     } else {
@@ -58,7 +58,7 @@ fun Player.sendScoreboard(vararg content: String) {
  * @param player 发包给的玩家,传入Null时为给全体发送
  */
 fun Player.setPrefix(prefix: String, player: Player?) {
-    val scoreboard = playerScoreboardMap.getOrPut(uniqueId) { PlayerScoreboard(this) }
+    val scoreboard = playerScoreboardMap.getOrCreate(uniqueId) { PlayerScoreboard(this) } ?: return
     if (prefix.isNotEmpty()) {
         scoreboard.setPrefix(prefix, player)
     } else {
@@ -72,7 +72,7 @@ fun Player.setPrefix(prefix: String, player: Player?) {
  *  * @param player 发包给的玩家,传入Null时为给全体发送
  */
 fun Player.setSuffix(suffix: String, player: Player?) {
-    val scoreboard = playerScoreboardMap.getOrPut(uniqueId) { PlayerScoreboard(this) }
+    val scoreboard = playerScoreboardMap.getOrCreate(uniqueId) { PlayerScoreboard(this) } ?: return
     if (suffix.isNotEmpty()) {
         scoreboard.setSuffix(suffix, player)
     } else {
@@ -86,7 +86,7 @@ fun Player.setSuffix(suffix: String, player: Player?) {
  * @param target 数据包接收单位, 传入 null 时为给全体发送
  */
 fun Player.setTeamColor(color: ChatColorFormat, target: Player? = null) {
-    playerScoreboardMap.getOrPut(uniqueId) { PlayerScoreboard(this) }.setColor(color, target)
+    playerScoreboardMap.getOrCreate(uniqueId) { PlayerScoreboard(this) }?.setColor(color, target)
 }
 
 /**
@@ -433,8 +433,7 @@ class NMSScoreboardImpl : NMSScoreboard() {
             return
         }
         // region Legacy Version
-        val team =
-            net.minecraft.server.v1_12_R1.ScoreboardTeam(net.minecraft.server.v1_12_R1.Scoreboard(), player.displayName)
+        val team = net.minecraft.server.v1_12_R1.ScoreboardTeam(net.minecraft.server.v1_12_R1.Scoreboard(), player.displayName)
         team.prefix = prefix
         team.suffix = suffix
         val packet = net.minecraft.server.v1_12_R1.PacketPlayOutScoreboardTeam(team, 2)
@@ -444,14 +443,27 @@ class NMSScoreboardImpl : NMSScoreboard() {
         // endregion
     }
 
+    // 版本适配：JSON 文本组件的反序列化策略
+    // 每个策略 lambda 先用空 JSON 测试可用性，成功后返回函数引用
+    private val jsonComponentImpl = versionAdaptor<(String) -> IChatBaseComponent>(
+        {
+            val test = NMSChatSerializer16::class.java.invokeMethod<Any>("fromJson", "{\"text\":\"\"}", isStatic = true)!!
+            { text -> NMSChatSerializer16::class.java.invokeMethod<Any>("fromJson", text, isStatic = true)!! as IChatBaseComponent }
+        },
+        {
+            val test = NMSChatSerializer16.b("{\"text\":\"\"}")!!
+            { text -> NMSChatSerializer16.b(text)!! as IChatBaseComponent }
+        },
+        {
+            val test = IChatBaseComponent.ChatSerializer.fromJson("{\"text\":\"\"}", IRegistryCustom.EMPTY)!!
+            { text -> IChatBaseComponent.ChatSerializer.fromJson(text, IRegistryCustom.EMPTY)!! as IChatBaseComponent }
+        }
+    )
+
     private fun component(text: String): Any {
         return if (text.startsWith("{") && text.endsWith("}")) {
             if (require(net.minecraft.server.v1_16_R3.IChatBaseComponent.ChatSerializer::class.java)) {
-                listOf(
-                    { net.minecraft.server.v1_16_R3.IChatBaseComponent.ChatSerializer::class.java.invokeMethod<Any>("fromJson", text, isStatic = true)!! },
-                    { net.minecraft.server.v1_16_R3.IChatBaseComponent.ChatSerializer.b(text)!! },
-                    { IChatBaseComponent.ChatSerializer.fromJson(text, IRegistryCustom.EMPTY)!! }
-                ).firstNotNullOf { runCatching(it).getOrNull() as? IChatBaseComponent }
+                jsonComponentImpl()(text)
             } else {
                 org.bukkit.craftbukkit.v1_21_R3.util.CraftChatMessage.fromJSON(text)
             }
@@ -581,7 +593,7 @@ class NMSScoreboardImpl : NMSScoreboard() {
                 suffix = color + content.substring(16 until content.length)
             }
             if (suffix.length > 16) {
-                suffix = suffix.substring(0, 16)
+                suffix = suffix.take(16)
             }
         }
         t.prefix = prefix
