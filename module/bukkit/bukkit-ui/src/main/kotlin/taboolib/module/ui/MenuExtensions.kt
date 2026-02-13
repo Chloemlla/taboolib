@@ -20,6 +20,7 @@ private const val OFFHAND_HOTBAR_BUTTON = -1
 private val amountConditionLimits = WeakHashMap<ClickEvent, MutableMap<Int, Int>>()
 /** 记录本次 ClickEvent 内各槽位的 condition 规则（用于 Shift+点击时统一处理） */
 private val conditionSlotRules = WeakHashMap<ClickEvent, MutableMap<Int, ConditionRule>>()
+private val lockSlotRules = WeakHashMap<ClickEvent, MutableList<LockRule>>()
 /** 暂存 Shift+点击需要移动的物品信息（等待收集完限量/条件配置） */
 private val pendingShiftMove = WeakHashMap<ClickEvent, PendingShiftMove>()
 /** 限量放入的处理结果 */
@@ -317,6 +318,11 @@ private data class ConditionRule(
     val failedCallback: () -> Unit,
 )
 
+private data class LockRule(
+    val rawSlots: Set<Int>,
+    val reverse: Boolean,
+)
+
 /**
  * 处理本次 ClickEvent 中的 Shift+点击（需要在所有 conditionSlot/amountCondition 调用之后执行）。
  * 未触发 Shift+点击时不会有任何副作用。
@@ -325,17 +331,19 @@ fun ClickEvent.applyAmountConditionShiftIfNeeded() {
     val pending = pendingShiftMove.remove(this) ?: run {
         amountConditionLimits.remove(this)
         conditionSlotRules.remove(this)
+        lockSlotRules.remove(this)
         return
     }
     val limits = amountConditionLimits.remove(this) ?: mutableMapOf()
     val rules = conditionSlotRules.remove(this) ?: mutableMapOf()
+    val locks = lockSlotRules.remove(this) ?: mutableListOf()
 
     val event = clickEvent()
     if (event.isCancelled) {
         return
     }
     event.isCancelled = true
-    applyShiftMoveWithConstraints(pending.who, pending.topInv, pending.sourceInv, pending.sourceSlot, pending.item, limits, rules)
+    applyShiftMoveWithConstraints(pending.who, pending.topInv, pending.sourceInv, pending.sourceSlot, pending.item, limits, rules, locks)
 }
 
 /** SWAP_WITH_CURSOR 时，交换上来的物品是否超出限制 */
@@ -490,6 +498,7 @@ private fun applyShiftMoveWithConstraints(
     clickedItem: ItemStack,
     slotLimits: Map<Int, Int>,
     conditionRules: Map<Int, ConditionRule>,
+    lockRules: List<LockRule>,
 ) {
     if (sourceInv == null || clickedItem.isAir) {
         return
@@ -505,6 +514,17 @@ private fun applyShiftMoveWithConstraints(
             minOf(limit, maxStack)
         },
         { slot, _, moveAmount ->
+            val allowedByLocks = lockRules.all { rule ->
+                if (rule.reverse) {
+                    slot in rule.rawSlots
+                } else {
+                    slot !in rule.rawSlots
+                }
+            }
+            if (!allowedByLocks) {
+                return@computeShiftMovePlan false
+            }
+
             val rule = conditionRules[slot] ?: return@computeShiftMovePlan true
             val putItem = clickedItem.clone().apply { amount = moveAmount }
             val allow = rule.condition(putItem, null)
@@ -551,6 +571,13 @@ private fun applyShiftMoveWithConstraints(
  * @param reverse 反向锁定，仅保留 rawSlots 格子可交互
  * */
 fun ClickEvent.lockSlots(rawSlots: List<Int>, reverse: Boolean = false) {
+    lockSlotRules.getOrPut(this) { mutableListOf() }.add(
+        LockRule(
+            rawSlots = rawSlots.toSet(),
+            reverse = reverse,
+        )
+    )
+
     if (isCancelled) return
     when(clickType) {
         CLICK -> {
