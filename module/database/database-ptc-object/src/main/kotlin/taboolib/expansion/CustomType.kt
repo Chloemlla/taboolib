@@ -18,6 +18,16 @@ interface CustomType {
     /** 类型 */
     val type: Class<*>
 
+    /**
+     * 集合元素类型。
+     * 当 elementType != null 时，表示这是一个集合 CustomType，
+     * 用于将整个集合字段（List/Set/Map）作为单列存储。
+     * - type = 集合类型（如 List::class.java）
+     * - elementType = 元素类型（如 XXXData::class.java）
+     */
+    val elementType: Class<*>?
+        get() = null
+
     /** 对应 SQL 类型 */
     val typeSQL: ColumnTypeSQL
         get() = ColumnTypeSQL.TEXT

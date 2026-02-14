@@ -260,8 +260,25 @@ class PersistentContainer {
      * @return Result 包含返回值或异常
      */
     fun <R> transaction(block: TransactionContext.() -> R): Result<R> {
+        // 事务传递：如果当前线程已有活跃事务，复用外层连接
+        val existing = TransactionContext.currentConnection.get()
+        if (existing != null) {
+            val context = TransactionContext(container, existing)
+            return try {
+                val result = context.block()
+                if (context.shouldRollback()) {
+                    Result.failure(TransactionRollbackException("Transaction marked for rollback"))
+                } else {
+                    Result.success(result)
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+        // 新事务
         val connection = container.dataSource.connection
         connection.autoCommit = false
+        TransactionContext.currentConnection.set(connection)
         return try {
             val context = TransactionContext(container, connection)
             val result = context.block()
@@ -281,6 +298,7 @@ class PersistentContainer {
             }
             Result.failure(e)
         } finally {
+            TransactionContext.currentConnection.remove()
             try {
                 connection.autoCommit = true
             } catch (_: Exception) {

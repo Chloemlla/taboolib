@@ -229,3 +229,34 @@ annotation class LinkTable(val value: String)
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
 annotation class TableName(val value: String)
+
+/**
+ * 标记字段为忽略字段，不参与数据库的读写操作。
+ *
+ * 被 @Ignore 标记的字段不会在数据库中创建列，也不会参与任何 CRUD 操作。
+ * 此注解的优先级最高，会覆盖其他所有注解（如 @Id、@Key、@LinkTable 等）。
+ *
+ * **默认值行为：**
+ * - 若字段在构造函数中且 Kotlin 声明了默认值 → 使用 Kotlin 默认值
+ * - 若字段在构造函数中但无默认值：
+ *   - 可空类型 → null
+ *   - List → emptyList()
+ *   - Set → emptySet()
+ *   - Map → emptyMap()
+ *   - 基础类型 → 类型零值（0、false、'\u0000' 等）
+ *   - String → ""
+ *   - 其他引用类型 → null
+ * - 若字段不在构造函数中（字段扫描模式） → 不设置默认值，保留无参构造器的初始值
+ *
+ * ```kotlin
+ * data class PlayerData(
+ *     @Id val uuid: String,
+ *     var level: Int,
+ *     @Ignore val cachedName: String = "unknown",  // 使用 Kotlin 默认值 "unknown"
+ *     @Ignore val tempTags: List<String> = listOf() // 使用 Kotlin 默认值 listOf()
+ * )
+ * ```
+ */
+@Target(AnnotationTarget.FIELD, AnnotationTarget.PROPERTY, AnnotationTarget.VALUE_PARAMETER)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class Ignore
