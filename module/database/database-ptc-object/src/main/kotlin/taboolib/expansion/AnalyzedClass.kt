@@ -70,14 +70,30 @@ class AnalyzedClass private constructor(val clazz: Class<*>) {
     /** 主成员名称 */
     val primaryMemberName = primaryMember?.name
 
-    /** 实际映射到列的成员（排除 @LinkTable 成员和容器成员） */
-    val columnMembers = members.filter { !it.isLinkTable && !it.isCollection }
+    /** 实际映射到列的成员（排除 @Ignore、@LinkTable 成员和容器成员） */
+    val columnMembers = members.filter { !it.isIgnored && !it.isLinkTable && !it.isCollection }
 
     /** @LinkTable 成员列表 */
     val linkMembers = members.filter { it.isLinkTable }
 
     /** 是否存在 @LinkTable 成员 */
     val hasLinkMembers = linkMembers.isNotEmpty()
+
+    /** 是否存在 @Ignore 成员 */
+    val hasIgnoredMembers = members.any { it.isIgnored }
+
+    /**
+     * Kotlin 合成默认构造器（带 DefaultConstructorMarker 参数）。
+     * 仅在存在 @Ignore 成员时查找，用于利用 Kotlin 声明的默认值。
+     */
+    private val kotlinDefaultConstructor = if (hasIgnoredMembers && !fieldScanMode) {
+        clazz.declaredConstructors.firstOrNull { ctor ->
+            val params = ctor.parameterTypes
+            params.size >= 2
+                && params[params.size - 1].name == "kotlin.jvm.internal.DefaultConstructorMarker"
+                && params[params.size - 2] == Int::class.javaPrimitiveType
+        }?.also { it.isAccessible = true }
+    } else null
 
     /** 容器类型成员列表（List/Set/Map） */
     val collectionMembers = members.filter { it.isCollection }
@@ -163,12 +179,12 @@ class AnalyzedClass private constructor(val clazz: Class<*>) {
         return property.get(data)
     }
 
-    /** 读取数据（不含 @LinkTable 成员和容器成员） */
+    /** 读取数据（不含 @Ignore、@LinkTable 成员和容器成员） */
     fun read(result: ResultSet): Map<String, Any?> {
         val map = hashMapOf<String, Any?>()
         members.forEach { member ->
-            // 跳过 @LinkTable 成员和容器成员，它们没有对应的列
-            if (member.isLinkTable || member.isCollection) return@forEach
+            // 跳过 @Ignore、@LinkTable 成员和容器成员（扁平化集合不跳过，它们有对应的列）
+            if (member.isIgnored || member.isLinkTable || member.isCollection) return@forEach
             val obj: Any? = result.getObject(member.name)
             if (obj == null) {
                 map[member.name] = null
@@ -250,6 +266,10 @@ class AnalyzedClass private constructor(val clazz: Class<*>) {
                     """.t()
                 )
             member.isByteArray -> obj.cByteArray
+            member.isFlattenedCollection -> {
+                val ct = CustomTypeFactory.getCustomTypeForCollection(member.returnType, member.collectionElementType!!)!!
+                ct.deserialize(obj)
+            }
             else -> {
                 val customType = CustomTypeFactory.getCustomTypeByClass(member.returnType) ?: error(
                     """
@@ -273,9 +293,10 @@ class AnalyzedClass private constructor(val clazz: Class<*>) {
                 """.t()
             )
         } else if (fieldScanMode) {
-            // 字段扫描模式：无参构造 + 反射设值
+            // 字段扫描模式：无参构造 + 反射设值（@Ignore 字段不设值，保留无参构造器的初始值）
             val instance = noArgConstructor!!.newInstance()
             members.forEach { member ->
+                if (member.isIgnored) return@forEach
                 val field = memberProperties[member.propertyName] ?: return@forEach
                 field.isAccessible = true
                 val value = map[member.name]
@@ -284,6 +305,52 @@ class AnalyzedClass private constructor(val clazz: Class<*>) {
                 }
             }
             instance
+        } else if (hasIgnoredMembers && kotlinDefaultConstructor != null) {
+            // 主构造器模式 + 存在 @Ignore 成员：使用 Kotlin 合成默认构造器
+            // 构建 defaultMask：被忽略的参数位设为 1，让 Kotlin 使用声明的默认值
+            var defaultMask = 0
+            val args = members.mapIndexed { index, member ->
+                if (member.isIgnored) {
+                    defaultMask = defaultMask or (1 shl index)
+                    // 传入占位值（Kotlin 会用默认值覆盖），对于无默认值的参数需要类型安全的零值
+                    defaultValueForType(member)
+                } else {
+                    map[member.name]
+                }
+            }
+            try {
+                kotlinDefaultConstructor.newInstance(*args.toTypedArray(), defaultMask, null)
+            } catch (ex: Throwable) {
+                // 合成构造器调用失败（可能参数无默认值），回退到手动填充默认值
+                val fallbackArgs = members.map { member ->
+                    if (member.isIgnored) defaultValueForType(member) else map[member.name]
+                }
+                try {
+                    primaryConstructor!!.newInstance(*fallbackArgs.toTypedArray())
+                } catch (ex2: Throwable) {
+                    error(
+                        """
+                        无法创建 $clazz 实例。($fallbackArgs, map=$map)
+                        Failed to create instance for $clazz. ($fallbackArgs, map=$map)
+                        """.t()
+                    )
+                }
+            }
+        } else if (hasIgnoredMembers) {
+            // 主构造器模式 + 存在 @Ignore 成员但无 Kotlin 合成构造器：手动填充默认值
+            val args = members.map { member ->
+                if (member.isIgnored) defaultValueForType(member) else map[member.name]
+            }
+            try {
+                primaryConstructor!!.newInstance(*args.toTypedArray())
+            } catch (ex: Throwable) {
+                error(
+                    """
+                    无法创建 $clazz 实例。($args, map=$map)
+                    Failed to create instance for $clazz. ($args, map=$map)
+                    """.t()
+                )
+            }
         } else {
             val args = members.map { map[it.name] }
             try {
@@ -298,6 +365,35 @@ class AnalyzedClass private constructor(val clazz: Class<*>) {
             }
         }
         return result as T
+    }
+
+    /**
+     * 为 @Ignore 字段生成类型安全的默认值。
+     * - 可空类型（非原始类型且非容器） → null
+     * - List → emptyList()
+     * - Set → emptySet()
+     * - Map → emptyMap()
+     * - 基础类型 → 零值
+     * - String → ""
+     * - 其他引用类型 → null
+     */
+    private fun defaultValueForType(member: AnalyzedClassMember): Any? {
+        val type = member.returnType
+        return when {
+            List::class.java.isAssignableFrom(type) -> emptyList<Any>()
+            Set::class.java.isAssignableFrom(type) -> emptySet<Any>()
+            Map::class.java.isAssignableFrom(type) -> emptyMap<Any, Any>()
+            type == Boolean::class.javaPrimitiveType || type == Boolean::class.java -> false
+            type == Byte::class.javaPrimitiveType || type == Byte::class.java -> 0.toByte()
+            type == Short::class.javaPrimitiveType || type == Short::class.java -> 0.toShort()
+            type == Int::class.javaPrimitiveType || type == Int::class.java -> 0
+            type == Long::class.javaPrimitiveType || type == Long::class.java -> 0L
+            type == Float::class.javaPrimitiveType || type == Float::class.java -> 0.0f
+            type == Double::class.javaPrimitiveType || type == Double::class.java -> 0.0
+            type == Char::class.javaPrimitiveType || type == Char::class.java -> '\u0000'
+            type == String::class.java -> ""
+            else -> null
+        }
     }
 
     /** 验证参数 */

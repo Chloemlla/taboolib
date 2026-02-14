@@ -31,6 +31,12 @@ class TransactionContext internal constructor(
     private val container: Container<*>,
     internal val connection: Connection
 ) {
+
+    companion object {
+        /** 当前线程的活跃事务连接 */
+        internal val currentConnection = ThreadLocal<Connection>()
+    }
+
     private var rollbackOnly = false
     private val operators = mutableMapOf<String, ContainerOperator>()
 

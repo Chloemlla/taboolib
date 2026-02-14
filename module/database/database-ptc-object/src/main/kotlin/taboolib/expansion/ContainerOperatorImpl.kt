@@ -339,7 +339,7 @@ class ContainerOperatorImpl(
 
     override fun update(data: Any, usePrimaryKey: Boolean, filter: Filter.() -> Unit) {
         val typeClass = AnalyzedClass.of(data::class.java)
-        if (typeClass.members.none { !it.isFinal || it.isLinkTable }) {
+        if (typeClass.members.none { !it.isIgnored && (!it.isFinal || it.isLinkTable) }) {
             error("No mutable field found.")
         }
         cascadeSaveLinkedObjects(typeClass, listOf(data))
@@ -357,7 +357,7 @@ class ContainerOperatorImpl(
                 val updateAction = ActionUpdate(table.name).apply {
                     if (name != null) where(name eq value?.value())
                     where(filter)
-                    typeClass.members.filter { (!it.isFinal || it.isLinkTable) && !it.isCollection }.forEach { member ->
+                    typeClass.members.filter { !it.isIgnored && (!it.isFinal || it.isLinkTable) && !it.isCollection }.forEach { member ->
                         if (member.isLinkTable) {
                             val linkedObj = typeClass.getValue(data, member)
                             val fkValue = if (linkedObj != null) {
@@ -365,6 +365,10 @@ class ContainerOperatorImpl(
                                 linkedClass.getPrimaryMemberValue(linkedObj)?.value()
                             } else null
                             set(member.linkTableColumn!!, fkValue)
+                        } else if (member.isFlattenedCollection) {
+                            val ct = CustomTypeFactory.getCustomTypeForCollection(member.returnType, member.collectionElementType!!)!!
+                            val raw = typeClass.getValue(data, member)
+                            set(member.name, if (raw != null) ct.serialize(raw) else null)
                         } else {
                             set(member.name, typeClass.getValue(data, member)?.value())
                         }
@@ -385,7 +389,7 @@ class ContainerOperatorImpl(
 
     override fun updateByKey(data: Any, usePrimaryKey: Boolean) {
         val typeClass = AnalyzedClass.of(data::class.java)
-        if (typeClass.members.none { !it.isFinal || it.isLinkTable }) {
+        if (typeClass.members.none { !it.isIgnored && (!it.isFinal || it.isLinkTable) }) {
             error("No mutable field found.")
         }
         update(data, usePrimaryKey) {
@@ -398,13 +402,13 @@ class ContainerOperatorImpl(
     override fun upsert(dataList: List<Any>) {
         if (dataList.isEmpty()) return
         val typeClass = AnalyzedClass.of(dataList.first().javaClass)
-        if (typeClass.members.none { !it.isFinal || it.isLinkTable }) {
+        if (typeClass.members.none { !it.isIgnored && (!it.isFinal || it.isLinkTable) }) {
             error("No mutable field found.")
         }
         cascadeSaveLinkedObjects(typeClass, dataList)
         val primaryName = typeClass.primaryMemberName ?: error("No primary id found.")
         val keyMembers = typeClass.members.filter { it.isKey }
-        val mutableMembers = typeClass.members.filter { (!it.isFinal || it.isLinkTable) && !it.isCollection }
+        val mutableMembers = typeClass.members.filter { !it.isIgnored && (!it.isFinal || it.isLinkTable) && !it.isCollection }
         // 构建唯一标识：@Id + @Key 的值
         fun buildKey(data: Any): String {
             val id = typeClass.getPrimaryMemberValue(data)?.value().toString()
@@ -484,6 +488,10 @@ class ContainerOperatorImpl(
                                     linkedClass.getPrimaryMemberValue(linkedObj)?.value()
                                 } else null
                                 stmt.setObject(idx++, fkValue)
+                            } else if (member.isFlattenedCollection) {
+                                val ct = CustomTypeFactory.getCustomTypeForCollection(member.returnType, member.collectionElementType!!)!!
+                                val raw = typeClass.getValue(data, member)
+                                stmt.setObject(idx++, if (raw != null) ct.serialize(raw) else null)
                             } else {
                                 stmt.setObject(idx++, typeClass.getValue(data, member)?.value())
                             }
@@ -520,7 +528,7 @@ class ContainerOperatorImpl(
         primaryName: String,
         keyMembers: List<AnalyzedClassMember>
     ): String {
-        val mutableMembers = typeClass.members.filter { (!it.isFinal || it.isLinkTable) && !it.isCollection }
+        val mutableMembers = typeClass.members.filter { !it.isIgnored && (!it.isFinal || it.isLinkTable) && !it.isCollection }
         val setClause = mutableMembers.joinToString(", ") { member ->
             if (member.isLinkTable) "${member.linkTableColumn!!.asFormattedColumnName()} = ?" else "${member.name.asFormattedColumnName()} = ?"
         }
@@ -696,7 +704,7 @@ class ContainerOperatorImpl(
     override fun updateBatch(dataList: List<Any>) {
         if (dataList.isEmpty()) return
         val typeClass = AnalyzedClass.of(dataList.first().javaClass)
-        val mutableMembers = typeClass.members.filter { (!it.isFinal || it.isLinkTable) && !it.isCollection }
+        val mutableMembers = typeClass.members.filter { !it.isIgnored && (!it.isFinal || it.isLinkTable) && !it.isCollection }
         if (mutableMembers.isEmpty()) error("No mutable field found.")
         cascadeSaveLinkedObjects(typeClass, dataList)
         val primaryName = typeClass.primaryMemberName ?: error("No primary id found.")
@@ -714,6 +722,10 @@ class ContainerOperatorImpl(
                                 linkedClass.getPrimaryMemberValue(linkedObj)?.value()
                             } else null
                             stmt.setObject(idx++, fkValue)
+                        } else if (member.isFlattenedCollection) {
+                            val ct = CustomTypeFactory.getCustomTypeForCollection(member.returnType, member.collectionElementType!!)!!
+                            val raw = typeClass.getValue(data, member)
+                            stmt.setObject(idx++, if (raw != null) ct.serialize(raw) else null)
                         } else {
                             stmt.setObject(idx++, typeClass.getValue(data, member)?.value())
                         }
@@ -769,7 +781,7 @@ class ContainerOperatorImpl(
             // 深度优先：先保存更深层的关联对象
             cascadeSaveLinkedObjects(linkedTypeClass, linkedObjects, visited)
             // 再保存当前层
-            val hasMutableFields = linkedTypeClass.members.any { !it.isFinal }
+            val hasMutableFields = linkedTypeClass.members.any { !it.isIgnored && !it.isFinal }
             if (hasMutableFields) {
                 operator.upsert(linkedObjects)
             } else {
@@ -791,16 +803,16 @@ class ContainerOperatorImpl(
      * 获取实际列名列表（@LinkTable 用 FK 列名）
      */
     private fun getColumnNames(typeClass: AnalyzedClass): List<String> {
-        return typeClass.members.filter { !it.isCollection }.map { member ->
+        return typeClass.members.filter { !it.isIgnored && !it.isCollection }.map { member ->
             if (member.isLinkTable) member.linkTableColumn!! else member.name
         }
     }
 
     /**
-     * 获取实际列值列表（@LinkTable 提取 FK 值）
+     * 获取实际列值列表（@LinkTable 提取 FK 值，扁平化集合用集合 CustomType 序列化）
      */
     private fun getColumnValues(typeClass: AnalyzedClass, data: Any): List<Any?> {
-        return typeClass.members.filter { !it.isCollection }.map { member ->
+        return typeClass.members.filter { !it.isIgnored && !it.isCollection }.map { member ->
             if (member.isLinkTable) {
                 val linkedObj = typeClass.getValue(data, member)
                 if (linkedObj != null) {
@@ -809,6 +821,10 @@ class ContainerOperatorImpl(
                 } else {
                     null
                 }
+            } else if (member.isFlattenedCollection) {
+                val ct = CustomTypeFactory.getCustomTypeForCollection(member.returnType, member.collectionElementType!!)!!
+                val raw = typeClass.getValue(data, member)
+                if (raw != null) ct.serialize(raw) else null
             } else {
                 typeClass.getValue(data, member)?.value()
             }
@@ -963,10 +979,10 @@ class ContainerOperatorImpl(
      */
     private inline fun <T> withConnection(crossinline block: (Connection) -> T): T {
         setupQuoter()
-        return if (sharedConnection != null) {
-            block(sharedConnection)
-        } else {
-            dataSource.connection.use { block(it) }
+        return when {
+            sharedConnection != null -> block(sharedConnection)
+            TransactionContext.currentConnection.get() != null -> block(TransactionContext.currentConnection.get())
+            else -> dataSource.connection.use { block(it) }
         }
     }
 
@@ -975,21 +991,22 @@ class ContainerOperatorImpl(
      */
     private inline fun withTransaction(crossinline block: (Connection) -> Unit) {
         setupQuoter()
-        if (sharedConnection != null) {
-            // 已在事务中，直接执行
-            block(sharedConnection)
-        } else {
-            dataSource.connection.use { conn ->
-                val originalAutoCommit = conn.autoCommit
-                conn.autoCommit = false
-                try {
-                    block(conn)
-                    conn.commit()
-                } catch (e: Exception) {
-                    conn.rollback()
-                    throw e
-                } finally {
-                    conn.autoCommit = originalAutoCommit
+        when {
+            sharedConnection != null -> block(sharedConnection)
+            TransactionContext.currentConnection.get() != null -> block(TransactionContext.currentConnection.get())
+            else -> {
+                dataSource.connection.use { conn ->
+                    val originalAutoCommit = conn.autoCommit
+                    conn.autoCommit = false
+                    try {
+                        block(conn)
+                        conn.commit()
+                    } catch (e: Exception) {
+                        conn.rollback()
+                        throw e
+                    } finally {
+                        conn.autoCommit = originalAutoCommit
+                    }
                 }
             }
         }
@@ -1167,6 +1184,30 @@ class ContainerOperatorImpl(
     }
 
     /**
+     * 序列化集合元素：优先使用注册的普通 CustomType，否则 toString()
+     */
+    private fun serializeCollectionElement(value: Any?, elementType: Class<*>?): String? {
+        if (value == null) return null
+        if (elementType != null) {
+            val ct = CustomTypeFactory.getCustomTypeByClass(elementType)
+            if (ct != null) return ct.serialize(value).toString()
+        }
+        return value.toString()
+    }
+
+    /**
+     * 反序列化集合元素：优先使用注册的普通 CustomType，否则原样返回
+     */
+    private fun deserializeCollectionElement(value: Any?, elementType: Class<*>?): Any? {
+        if (value == null) return null
+        if (elementType != null) {
+            val ct = CustomTypeFactory.getCustomTypeByClass(elementType)
+            if (ct != null) return ct.deserialize(value)
+        }
+        return value
+    }
+
+    /**
      * 插入容器值到子表
      */
     private fun insertCollectionValues(info: CollectionTableInfo, member: AnalyzedClassMember, parentId: Any, collection: Any) {
@@ -1180,8 +1221,8 @@ class ContainerOperatorImpl(
                     conn.prepareStatement(sql).use { stmt ->
                         map.forEach { (k, v) ->
                             stmt.setObject(1, convertParam(parentId))
-                            stmt.setObject(2, k?.toString())
-                            stmt.setObject(3, v?.toString())
+                            stmt.setObject(2, serializeCollectionElement(k, member.mapKeyType))
+                            stmt.setObject(3, serializeCollectionElement(v, member.collectionElementType))
                             stmt.addBatch()
                         }
                         stmt.executeBatch()
@@ -1196,7 +1237,7 @@ class ContainerOperatorImpl(
                     conn.prepareStatement(sql).use { stmt ->
                         list.forEachIndexed { index, v ->
                             stmt.setObject(1, convertParam(parentId))
-                            stmt.setObject(2, v?.toString())
+                            stmt.setObject(2, serializeCollectionElement(v, member.collectionElementType))
                             stmt.setObject(3, index)
                             stmt.addBatch()
                         }
@@ -1212,7 +1253,7 @@ class ContainerOperatorImpl(
                     conn.prepareStatement(sql).use { stmt ->
                         set.forEach { v ->
                             stmt.setObject(1, convertParam(parentId))
-                            stmt.setObject(2, v?.toString())
+                            stmt.setObject(2, serializeCollectionElement(v, member.collectionElementType))
                             stmt.addBatch()
                         }
                         stmt.executeBatch()
@@ -1262,28 +1303,32 @@ class ContainerOperatorImpl(
                         member.isMap -> {
                             while (rs.next()) {
                                 val fk = rs.getObject(info.fkColumnName)?.toString() ?: continue
-                                val key = rs.getString("map_key")
-                                val value = rs.getString("map_value")
+                                val rawKey = rs.getString("map_key")
+                                val rawValue = rs.getString("map_value")
+                                val key = deserializeCollectionElement(rawKey, member.mapKeyType)
+                                val value = deserializeCollectionElement(rawValue, member.collectionElementType)
                                 @Suppress("UNCHECKED_CAST")
-                                val map = result.getOrPut(fk) { mutableMapOf<String, String?>() } as MutableMap<String, String?>
+                                val map = result.getOrPut(fk) { mutableMapOf<Any?, Any?>() } as MutableMap<Any?, Any?>
                                 map[key] = value
                             }
                         }
                         member.isList -> {
                             while (rs.next()) {
                                 val fk = rs.getObject(info.fkColumnName)?.toString() ?: continue
-                                val value = rs.getString("value")
+                                val rawValue = rs.getString("value")
+                                val value = deserializeCollectionElement(rawValue, member.collectionElementType)
                                 @Suppress("UNCHECKED_CAST")
-                                val list = result.getOrPut(fk) { mutableListOf<String?>() } as MutableList<String?>
+                                val list = result.getOrPut(fk) { mutableListOf<Any?>() } as MutableList<Any?>
                                 list.add(value)
                             }
                         }
                         member.isSet -> {
                             while (rs.next()) {
                                 val fk = rs.getObject(info.fkColumnName)?.toString() ?: continue
-                                val value = rs.getString("value")
+                                val rawValue = rs.getString("value")
+                                val value = deserializeCollectionElement(rawValue, member.collectionElementType)
                                 @Suppress("UNCHECKED_CAST")
-                                val set = result.getOrPut(fk) { mutableSetOf<String?>() } as MutableSet<String?>
+                                val set = result.getOrPut(fk) { mutableSetOf<Any?>() } as MutableSet<Any?>
                                 set.add(value)
                             }
                         }

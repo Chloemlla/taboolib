@@ -168,7 +168,144 @@ data class MixedCollectionData(
 
 // endregion
 
-// region 工具函数
+// region @Ignore 测试用 data class
+
+/** 基础 @Ignore 测试：忽略字段带 Kotlin 默认值 */
+data class IgnoreWithDefaultData(
+    @Id val id: String,
+    var value: Int,
+    @Ignore val cachedName: String = "default_name",
+    @Ignore val tempScore: Int = 42
+)
+
+/** @Ignore 容器类型测试 */
+data class IgnoreCollectionData(
+    @Id val id: String,
+    var label: String,
+    @Ignore val tempTags: List<String> = listOf("a", "b"),
+    @Ignore val tempSet: Set<String> = setOf("x"),
+    @Ignore val tempMap: Map<String, String> = mapOf("k" to "v")
+)
+
+/** @Ignore 无默认值测试（可空类型） */
+data class IgnoreNullableData(
+    @Id val id: String,
+    var value: Int,
+    @Ignore val nullable: String? = null
+)
+
+// endregion
+
+// region 集合 CustomType 测试用 data class 和 CustomType
+
+/** 测试用数据类，作为集合元素 */
+data class ItemData(val name: String, val count: Int)
+
+/** 集合 CustomType：将 List<ItemData> 作为单列存储 */
+object ItemDataListType : CustomType {
+    override val type: Class<*> = List::class.java
+    override val elementType: Class<*> = ItemData::class.java
+    override fun serialize(value: Any): Any {
+        @Suppress("UNCHECKED_CAST")
+        val list = value as List<ItemData>
+        return list.joinToString(";") { "${it.name}:${it.count}" }
+    }
+    override fun deserialize(value: Any): Any {
+        val str = value.toString()
+        if (str.isEmpty()) return emptyList<ItemData>()
+        return str.split(";").map {
+            val parts = it.split(":")
+            ItemData(parts[0], parts[1].toInt())
+        }
+    }
+}
+
+/** 集合 CustomType：将 Set<ItemData> 作为单列存储 */
+object ItemDataSetType : CustomType {
+    override val type: Class<*> = Set::class.java
+    override val elementType: Class<*> = ItemData::class.java
+    override fun serialize(value: Any): Any {
+        @Suppress("UNCHECKED_CAST")
+        val set = value as Set<ItemData>
+        return set.joinToString(";") { "${it.name}:${it.count}" }
+    }
+    override fun deserialize(value: Any): Any {
+        val str = value.toString()
+        if (str.isEmpty()) return emptySet<ItemData>()
+        return str.split(";").map {
+            val parts = it.split(":")
+            ItemData(parts[0], parts[1].toInt())
+        }.toSet()
+    }
+}
+
+/** 集合 CustomType：将 Map<String, ItemData> 作为单列存储 */
+object ItemDataMapType : CustomType {
+    override val type: Class<*> = Map::class.java
+    override val elementType: Class<*> = ItemData::class.java
+    override fun serialize(value: Any): Any {
+        @Suppress("UNCHECKED_CAST")
+        val map = value as Map<String, ItemData>
+        return map.entries.joinToString(";") { "${it.key}=${it.value.name}:${it.value.count}" }
+    }
+    override fun deserialize(value: Any): Any {
+        val str = value.toString()
+        if (str.isEmpty()) return emptyMap<String, ItemData>()
+        return str.split(";").associate {
+            val kv = it.split("=")
+            val parts = kv[1].split(":")
+            kv[0] to ItemData(parts[0], parts[1].toInt())
+        }
+    }
+}
+
+/** 普通 CustomType：用于子表元素级别的序列化/反序列化 */
+object ItemDataType : CustomType {
+    override val type: Class<*> = ItemData::class.java
+    override fun serialize(value: Any): Any {
+        val item = value as ItemData
+        return "${item.name}:${item.count}"
+    }
+    override fun deserialize(value: Any): Any {
+        val parts = value.toString().split(":")
+        return ItemData(parts[0], parts[1].toInt())
+    }
+}
+
+/** 扁平化集合测试：List<ItemData> 有匹配的集合 CustomType → 单列存储 */
+data class FlattenedListData(
+    @Id val id: String,
+    var label: String,
+    var items: List<ItemData>
+)
+
+/** 扁平化集合测试：Set<ItemData> 有匹配的集合 CustomType → 单列存储 */
+data class FlattenedSetData(
+    @Id val id: String,
+    val items: Set<ItemData>
+)
+
+/** 扁平化集合测试：Map<String, ItemData> 有匹配的集合 CustomType → 单列存储 */
+data class FlattenedMapData(
+    @Id val id: String,
+    val items: Map<String, ItemData>
+)
+
+/** 子表元素 CustomType 测试：List<ItemData> 无集合 CustomType → 走子表，元素用 ItemDataType 序列化 */
+data class ElementCustomTypeListData(
+    @Id val id: String,
+    var label: String = "",
+    val items: List<ItemData>
+)
+
+/** 混合测试：扁平化集合 + 普通子表集合 */
+data class MixedFlatAndSubTableData(
+    @Id val id: String,
+    val flatItems: List<ItemData>,  // 有集合 CustomType → 单列
+    val tags: List<String>          // 无集合 CustomType → 子表
+)
+
+// endregion
 
 /**
  * 创建 SQLite 内存 HikariDataSource
@@ -263,6 +400,8 @@ private fun buildSQLiteTable(type: AnalyzedClass, name: String): Table<HostSQLit
             add { id() }
         }
         type.members.forEach { member ->
+            // 跳过 @Ignore 成员
+            if (member.isIgnored) return@forEach
             // 跳过容器类型成员（它们存储在子表中）
             if (member.isCollection) return@forEach
             // @LinkTable 成员：创建外键列
@@ -297,7 +436,14 @@ private fun buildSQLiteTable(type: AnalyzedClass, name: String): Table<HostSQLit
                 member.isByteArray -> add(member.name) {
                     type(ColumnTypeSQLite.BLOB) { options(member) }
                 }
-                else -> error("Unsupported type: ${member.name} (${member.returnType})")
+                else -> {
+                    val customType = if (member.isFlattenedCollection) {
+                        CustomTypeFactory.getCustomTypeForCollection(member.returnType, member.collectionElementType!!)
+                    } else {
+                        CustomTypeFactory.getCustomTypeByClass(member.returnType)
+                    } ?: error("Unsupported type: ${member.name} (${member.returnType})")
+                    add(member.name) { type(customType.typeSQLite, customType.length) { options(member) } }
+                }
             }
         }
     }
@@ -348,8 +494,25 @@ class TestContainer(val dataSource: HikariDataSource) {
     }
 
     fun <R> transaction(block: TestTransactionContext.() -> R): Result<R> {
+        // 事务传递：如果当前线程已有活跃事务，复用外层连接
+        val existing = TransactionContext.currentConnection.get()
+        if (existing != null) {
+            val context = TestTransactionContext(this, existing)
+            return try {
+                val result = context.block()
+                if (context.shouldRollback()) {
+                    Result.failure(TransactionRollbackException("Transaction marked for rollback"))
+                } else {
+                    Result.success(result)
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+        // 新事务
         val connection = dataSource.connection
         connection.autoCommit = false
+        TransactionContext.currentConnection.set(connection)
         return try {
             val context = TestTransactionContext(this, connection)
             val result = context.block()
@@ -364,6 +527,7 @@ class TestContainer(val dataSource: HikariDataSource) {
             try { connection.rollback() } catch (re: Exception) { e.addSuppressed(re) }
             Result.failure(e)
         } finally {
+            TransactionContext.currentConnection.remove()
             try { connection.autoCommit = true } catch (_: Exception) {}
             try { connection.close() } catch (_: Exception) {}
         }

@@ -29,6 +29,8 @@ class ContainerPostgreSQL(
                 add { id() }
             }
             type.members.forEach { member ->
+                // 跳过 @Ignore 成员
+                if (member.isIgnored) return@forEach
                 // 跳过容器类型成员（它们存储在子表中）
                 if (member.isCollection) return@forEach
                 // @LinkTable 成员：创建外键列而非展开关联类
@@ -94,7 +96,11 @@ class ContainerPostgreSQL(
                     }
                     // 其他类型
                     else -> add(member.name) {
-                        val customType = CustomTypeFactory.getCustomTypeByClass(member.returnType)
+                        val customType = if (member.isFlattenedCollection) {
+                            CustomTypeFactory.getCustomTypeForCollection(member.returnType, member.collectionElementType!!)
+                        } else {
+                            CustomTypeFactory.getCustomTypeByClass(member.returnType)
+                        }
                         if (customType == null) {
                             type(member.type()) { options(member) }
                         } else {

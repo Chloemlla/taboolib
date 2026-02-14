@@ -68,17 +68,20 @@ class AnalyzedClassMember(private val root: AnnotatedElement, name: String, val 
     /** 泛型参数化类型 */
     val parameterizedType: ParameterizedType? = genericType as? ParameterizedType
 
-    /** 是否为 ID 键 */
-    val isPrimary = root.findAnnotation<Id>() != null
+    /** 是否为忽略字段（优先级最高，不参与数据库读写） */
+    val isIgnored: Boolean = root.findAnnotation<Ignore>() != null
 
-    /** 是否建立索引 */
-    val isKey = root.findAnnotation<Key>() != null
+    /** 是否为 ID 键（@Ignore 优先级最高，忽略字段不作为主键） */
+    val isPrimary = !isIgnored && root.findAnnotation<Id>() != null
 
-    /** 是否建立唯一索引 */
-    val isUniqueKey = root.findAnnotation<UniqueKey>() != null
+    /** 是否建立索引（@Ignore 优先级最高） */
+    val isKey = !isIgnored && root.findAnnotation<Key>() != null
 
-    /** 是否不为空 */
-    val isNotNull = root.findAnnotation<NotNull>() != null
+    /** 是否建立唯一索引（@Ignore 优先级最高） */
+    val isUniqueKey = !isIgnored && root.findAnnotation<UniqueKey>() != null
+
+    /** 是否不为空（@Ignore 优先级最高） */
+    val isNotNull = !isIgnored && root.findAnnotation<NotNull>() != null
 
     /** 长度 */
     val length = root.findAnnotation<Length>()?.value ?: 64
@@ -96,7 +99,7 @@ class AnalyzedClassMember(private val root: AnnotatedElement, name: String, val 
     val hasColumnType: Boolean = root.findAnnotation<ColumnType>() != null
 
     /** 是否为关联表引用 */
-    val isLinkTable: Boolean = root.findAnnotation<LinkTable>() != null
+    val isLinkTable: Boolean = !isIgnored && root.findAnnotation<LinkTable>() != null
 
     /** 关联表外键列名（下划线命名） */
     val linkTableColumn: String? = root.findAnnotation<LinkTable>()?.value?.toColumnName()
@@ -116,9 +119,15 @@ class AnalyzedClassMember(private val root: AnnotatedElement, name: String, val 
     val isMap: Boolean
         get() = Map::class.java.isAssignableFrom(returnType)
 
-    /** 是否为容器类型（List/Set/Map） */
+    /** 是否为扁平化集合（整个集合作为单列存储，由集合 CustomType 序列化） */
+    val isFlattenedCollection: Boolean
+        get() = !isIgnored && (isList || isSet || isMap)
+                && collectionElementType != null
+                && CustomTypeFactory.getCustomTypeForCollection(returnType, collectionElementType!!) != null
+
+    /** 是否为容器类型（List/Set/Map），@Ignore 字段和扁平化集合不视为容器成员 */
     val isCollection: Boolean
-        get() = isList || isSet || isMap
+        get() = !isIgnored && (isList || isSet || isMap) && !isFlattenedCollection
 
     /** 容器元素类型（List<T>/Set<T> 的 T，Map<K,V> 的 V） */
     val collectionElementType: Class<*>? = when {
@@ -192,9 +201,9 @@ class AnalyzedClassMember(private val root: AnnotatedElement, name: String, val 
     val isIndexedEnum: Boolean
         get() = isEnum && IndexedEnum::class.java.isAssignableFrom(returnType)
 
-    /** 是否为自定义对象 */
+    /** 是否为自定义对象（@Ignore 字段、扁平化集合不视为自定义对象） */
     val isCustomObject: Boolean
-        get() = !isLinkTable && !isCollection && !isBoolean && !isByte && !isShort && !isInt && !isLong && !isFloat && !isDouble && !isChar && !isString && !isEnum && !isUUID && !isByteArray
+        get() = !isIgnored && !isLinkTable && !isCollection && !isFlattenedCollection && !isBoolean && !isByte && !isShort && !isInt && !isLong && !isFloat && !isDouble && !isChar && !isString && !isEnum && !isUUID && !isByteArray
 
     /** 是否可以转换成字符串类型 */
     fun canConvertedString(): Boolean {
