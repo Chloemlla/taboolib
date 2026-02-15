@@ -43,12 +43,12 @@ open class ExecutableSource(val table: Table<*, *>, var dataSource: DataSource, 
         if (table.host is HostPostgreSQL) {
             table.columns.filterIsInstance<ColumnPostgreSQL>().forEach { col ->
                 if (col.options.contains(ColumnOptionPostgreSQL.KEY)) {
-                    val indexName = "idx_${table.name}_${col.name}"
+                    val indexName = "idx_${table.name.replace('.', '_')}_${col.name}"
                     val sql = "CREATE INDEX IF NOT EXISTS ${indexName.asFormattedColumnName()} ON ${table.name.asFormattedColumnName()} (${col.name.asFormattedColumnName()})"
                     executeUpdate(sql)
                 }
                 if (col.options.contains(ColumnOptionPostgreSQL.UNIQUE)) {
-                    val indexName = "uk_${table.name}_${col.name}"
+                    val indexName = "uk_${table.name.replace('.', '_')}_${col.name}"
                     val sql = "CREATE UNIQUE INDEX IF NOT EXISTS ${indexName.asFormattedColumnName()} ON ${table.name.asFormattedColumnName()} (${col.name.asFormattedColumnName()})"
                     executeUpdate(sql)
                 }

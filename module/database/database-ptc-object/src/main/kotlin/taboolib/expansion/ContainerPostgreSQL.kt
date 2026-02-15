@@ -158,14 +158,37 @@ class ContainerPostgreSQL(
     }
 
     override fun init() {
+        // 收集需要创建的 schema
+        val schemas = mutableSetOf<String>()
+        map.keys.forEach { tableName ->
+            val dotIndex = tableName.indexOf('.')
+            if (dotIndex > 0) {
+                schemas.add(tableName.substring(0, dotIndex))
+            }
+        }
+        // 创建不存在的 schema
+        if (schemas.isNotEmpty()) {
+            dataSource.connection.use { conn ->
+                conn.createStatement().use { stmt ->
+                    schemas.forEach { schema ->
+                        stmt.executeUpdate("CREATE SCHEMA IF NOT EXISTS \"$schema\"")
+                    }
+                }
+            }
+        }
+        // 调用父类 init（建表 + 迁移）
         super.init()
         // 为 @Key 字段创建 PostgreSQL 索引
         if (keyColumns.isNotEmpty()) {
             dataSource.connection.use { conn ->
                 conn.createStatement().use { stmt ->
                     keyColumns.forEach { (tableName, columns) ->
+                        // 索引名中的点号替换为下划线，避免被当作 schema 限定符
+                        val safeIndexName = tableName.replace('.', '_')
+                        // 表名含 schema 时需要分别引用："schema"."table"
+                        val quotedTableName = tableName.split('.').joinToString(".") { "\"$it\"" }
                         columns.forEach { col ->
-                            stmt.executeUpdate("CREATE INDEX IF NOT EXISTS \"idx_${tableName}_${col}\" ON \"$tableName\" (\"$col\")")
+                            stmt.executeUpdate("CREATE INDEX IF NOT EXISTS \"idx_${safeIndexName}_${col}\" ON $quotedTableName (\"$col\")")
                         }
                     }
                 }

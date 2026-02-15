@@ -224,11 +224,23 @@ annotation class LinkTable(val value: String)
  * )
  * ```
  *
+ * 支持 PostgreSQL Schema：
+ * ```kotlin
+ * @TableName("player_home", schema = "game")
+ * data class PlayerHome(
+ *     @Id val username: String,
+ *     var world: String,
+ * )
+ * // 建表时自动创建 Schema：CREATE SCHEMA IF NOT EXISTS "game"
+ * // 表名解析为：game.player_home
+ * ```
+ *
  * @param value 自定义表名
+ * @param schema PostgreSQL Schema 名称（为空时不使用 Schema 前缀）
  */
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
-annotation class TableName(val value: String)
+annotation class TableName(val value: String, val schema: String = "")
 
 /**
  * 标记字段为忽略字段，不参与数据库的读写操作。

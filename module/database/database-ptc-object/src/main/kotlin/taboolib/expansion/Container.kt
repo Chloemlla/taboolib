@@ -22,6 +22,12 @@ abstract class Container<T : ColumnBuilder>(val host: Host<T>) {
     /** class → 容器关联表信息列表 */
     val collectionTableMap = ConcurrentHashMap<Class<*>, List<CollectionTableInfo>>()
 
+    /** 手动建表 SQL（非 null 时跳过自动建表） */
+    internal var manualTableStatements: List<String>? = null
+
+    /** 版本迁移配置 */
+    internal var migrationInstance: MigrationConfig? = null
+
     /** 创建表 */
     protected abstract fun createTableObject(type: AnalyzedClass, name: String): Table<*, *>
 
@@ -72,10 +78,76 @@ abstract class Container<T : ColumnBuilder>(val host: Host<T>) {
 
     /** 初始化所有表 */
     open fun init() {
-        map.forEach { it.value.table.createTable(dataSource) }
-        // 创建容器子表
-        collectionTableMap.values.forEach { infos ->
-            infos.forEach { it.table.createTable(dataSource) }
+        if (manualTableStatements != null) {
+            // 手动建表：执行用户提供的 SQL
+            dataSource.connection.use { conn ->
+                conn.createStatement().use { stmt ->
+                    manualTableStatements!!.forEach { stmt.executeUpdate(it) }
+                }
+            }
+        } else {
+            // 自动建表
+            map.forEach { it.value.table.createTable(dataSource) }
+            // 创建容器子表
+            collectionTableMap.values.forEach { infos ->
+                infos.forEach { it.table.createTable(dataSource) }
+            }
+        }
+        // 版本迁移
+        migrationInstance?.let { runMigrations(it) }
+    }
+
+    /** 执行版本迁移 */
+    private fun runMigrations(config: MigrationConfig) {
+        if (config.versions.isEmpty()) return
+        dataSource.connection.use { conn ->
+            // 创建 meta 表
+            conn.createStatement().use { stmt ->
+                stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS _ptc_meta (" +
+                    "table_name VARCHAR(255) NOT NULL PRIMARY KEY, " +
+                    "version INT NOT NULL DEFAULT 0)"
+                )
+            }
+            // 对每个注册的表执行迁移
+            for (tableName in map.keys) {
+                // 查询当前版本
+                val currentVersion = conn.prepareStatement(
+                    "SELECT version FROM _ptc_meta WHERE table_name = ?"
+                ).use { ps ->
+                    ps.setString(1, tableName)
+                    ps.executeQuery().use { rs ->
+                        if (rs.next()) rs.getInt("version") else 0
+                    }
+                }
+                // 执行待迁移版本
+                val pending = config.versions.filter { it.key > currentVersion }
+                if (pending.isEmpty()) continue
+                pending.forEach { (_, sqls) ->
+                    conn.createStatement().use { stmt ->
+                        sqls.forEach { stmt.executeUpdate(it) }
+                    }
+                }
+                // 更新版本号
+                val maxVersion = pending.keys.max()
+                if (currentVersion == 0) {
+                    conn.prepareStatement(
+                        "INSERT INTO _ptc_meta (table_name, version) VALUES (?, ?)"
+                    ).use { ps ->
+                        ps.setString(1, tableName)
+                        ps.setInt(2, maxVersion)
+                        ps.executeUpdate()
+                    }
+                } else {
+                    conn.prepareStatement(
+                        "UPDATE _ptc_meta SET version = ? WHERE table_name = ?"
+                    ).use { ps ->
+                        ps.setInt(1, maxVersion)
+                        ps.setString(2, tableName)
+                        ps.executeUpdate()
+                    }
+                }
+            }
         }
     }
 

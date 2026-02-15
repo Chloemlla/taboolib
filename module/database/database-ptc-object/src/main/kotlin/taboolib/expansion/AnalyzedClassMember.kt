@@ -236,9 +236,12 @@ class AnalyzedClassMember(private val root: AnnotatedElement, name: String, val 
             return toCharArray().joinToString("") { if (it.isUpperCase()) "_${it.lowercase()}" else it.toString() }.trimStart('_')
         }
 
-        /** 解析数据类的表名：优先使用 @TableName 注解值，否则将类名转为下划线命名 */
+        /** 解析数据类的表名：优先使用 @TableName 注解值，否则将类名转为下划线命名；支持 schema 前缀 */
         fun Class<*>.resolveTableName(): String {
-            return getAnnotation(TableName::class.java)?.value ?: simpleName.toColumnName()
+            val annotation = getAnnotation(TableName::class.java)
+            val name = annotation?.value ?: simpleName.toColumnName()
+            val schema = annotation?.schema ?: ""
+            return if (schema.isNotEmpty()) "$schema.$name" else name
         }
 
         /** 获取注解 */
