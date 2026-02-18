@@ -376,6 +376,7 @@ open class ChestImpl(override var title: String) : Chest {
         this.title = title
         this.isUpdateTitle = true
         try {
+            if (!::lastInventory.isInitialized) return
             // 获取所有打开页面的玩家
             val viewers = lastInventory.viewers.toList()
             // 重新构建页面
