@@ -1,6 +1,6 @@
 package taboolib.expansion.ioc.scope
 
-import taboolib.expansion.AnalyzedClass
+import taboolib.expansion.orm.AnalyzedClass
 import taboolib.expansion.DataMapper
 import taboolib.expansion.Page
 import taboolib.expansion.ioc.persistence.PersistenceManager

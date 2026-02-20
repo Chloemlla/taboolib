@@ -2,7 +2,8 @@ package taboolib.expansion
 
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
-import taboolib.expansion.AnalyzedClassMember.Companion.toColumnName
+import taboolib.expansion.orm.AnalyzedClass
+import taboolib.expansion.orm.AnalyzedClassMember.Companion.toColumnName
 
 class AnalyzedClassMemberTest {
 

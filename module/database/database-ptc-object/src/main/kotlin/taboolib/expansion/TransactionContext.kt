@@ -1,7 +1,9 @@
 package taboolib.expansion
 
-import taboolib.expansion.AnalyzedClassMember.Companion.resolveTableName
-import taboolib.expansion.AnalyzedClassMember.Companion.toColumnName
+import taboolib.expansion.container.Container
+import taboolib.expansion.operator.ContainerOperatorImpl
+import taboolib.expansion.orm.AnalyzedClassMember.Companion.resolveTableName
+import taboolib.expansion.orm.AnalyzedClassMember.Companion.toColumnName
 import java.sql.Connection
 
 /**
@@ -58,8 +60,15 @@ class TransactionContext internal constructor(
      *
      * @return 事务感知的操作器
      */
+    @PublishedApi internal fun resolveTableName(clazz: Class<*>): String = container.resolveTableName(clazz)
+
+    /**
+     * 获取事务感知的操作器
+     *
+     * @return 事务感知的操作器
+     */
     inline fun <reified T> get(): ContainerOperator {
-        return operator(T::class.java.resolveTableName())
+        return operator(resolveTableName(T::class.java))
     }
 
     /**
@@ -115,7 +124,7 @@ class TransactionContext internal constructor(
      * 共享当前事务的 Connection，保证联查与其他操作在同一事务中。
      */
     fun join(builder: JoinQuery.() -> Unit): JoinQuery {
-        return JoinQuery(container.dataSource, connection).also(builder)
+        return JoinQuery(container.dataSource, connection, tablePrefix = container.tablePrefix).also(builder)
     }
 }
 

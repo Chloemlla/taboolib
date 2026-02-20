@@ -1,6 +1,18 @@
-package taboolib.expansion
+package taboolib.expansion.orm
 
 import taboolib.common.reflect.getAnnotationIfPresent
+import taboolib.expansion.Alias
+import taboolib.expansion.ColumnType
+import taboolib.expansion.CustomTypeFactory
+import taboolib.expansion.Id
+import taboolib.expansion.Ignore
+import taboolib.expansion.IndexedEnum
+import taboolib.expansion.Key
+import taboolib.expansion.Length
+import taboolib.expansion.LinkTable
+import taboolib.expansion.NotNull
+import taboolib.expansion.TableName
+import taboolib.expansion.UniqueKey
 import taboolib.module.database.ColumnTypeSQL
 import taboolib.module.database.ColumnTypeSQLite
 import taboolib.module.database.ColumnTypePostgreSQL
