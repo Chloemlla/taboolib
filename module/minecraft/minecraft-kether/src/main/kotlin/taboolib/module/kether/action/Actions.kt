@@ -203,7 +203,7 @@ internal object Actions {
                     run(actions[cur]).thenAccept { result ->
                         last = result
                         process(cur + 1)
-                    }
+                    }.exceptNull { f.complete(last) }
                 } else {
                     f.complete(last)
                 }

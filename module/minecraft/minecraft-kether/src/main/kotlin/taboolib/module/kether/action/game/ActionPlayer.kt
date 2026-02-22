@@ -16,7 +16,7 @@ class ActionPlayer(val name: String, val operator: PlayerOperator, val method: P
     override fun run(frame: ScriptFrame): CompletableFuture<Any?> {
         val viewer = frame.player()
         return if (value != null) {
-            frame.newFrame(value).run<Any>().thenApplyAsync({
+            frame.run(value).thenApply {
                 runSync {
                     try {
                         operator.writer?.func?.invoke(viewer, method, it) ?: error("Player \"$name\" is not writable.")
@@ -26,7 +26,7 @@ class ActionPlayer(val name: String, val operator: PlayerOperator, val method: P
                         viewer.sendMessage("§cPlayer \"$name\" is not supported for this minecraft version (or platform).")
                     }
                 }
-            }, frame.context().executor)
+            }
         } else {
             CompletableFuture.completedFuture(operator.reader?.func?.invoke(viewer) ?: error("Player \"$name\" is not readable."))
         }
