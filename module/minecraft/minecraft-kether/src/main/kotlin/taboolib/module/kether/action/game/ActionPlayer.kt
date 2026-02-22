@@ -1,6 +1,7 @@
 package taboolib.module.kether.action.game
 
 import taboolib.common.Inject
+import taboolib.common.util.runSync
 import taboolib.library.kether.ArgTypes
 import taboolib.library.kether.ParsedAction
 import taboolib.module.kether.*
@@ -16,12 +17,14 @@ class ActionPlayer(val name: String, val operator: PlayerOperator, val method: P
         val viewer = frame.player()
         return if (value != null) {
             frame.newFrame(value).run<Any>().thenApplyAsync({
-                try {
-                    operator.writer?.func?.invoke(viewer, method, it) ?: error("Player \"$name\" is not writable.")
-                } catch (ex: NoSuchMethodError) {
-                    viewer.sendMessage("§cPlayer \"$name\" is not supported for this minecraft version (or platform).")
-                } catch (ex: NoSuchFieldError) {
-                    viewer.sendMessage("§cPlayer \"$name\" is not supported for this minecraft version (or platform).")
+                runSync {
+                    try {
+                        operator.writer?.func?.invoke(viewer, method, it) ?: error("Player \"$name\" is not writable.")
+                    } catch (ex: NoSuchMethodError) {
+                        viewer.sendMessage("§cPlayer \"$name\" is not supported for this minecraft version (or platform).")
+                    } catch (ex: NoSuchFieldError) {
+                        viewer.sendMessage("§cPlayer \"$name\" is not supported for this minecraft version (or platform).")
+                    }
                 }
             }, frame.context().executor)
         } else {
