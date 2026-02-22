@@ -2,6 +2,10 @@ package taboolib.expansion
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
+import taboolib.expansion.operator.ContainerOperatorImpl
+import taboolib.expansion.orm.AnalyzedClass
+import taboolib.expansion.orm.AnalyzedClassMember
+import taboolib.expansion.orm.AnalyzedClassMember.Companion.toColumnName
 import taboolib.module.database.*
 import java.util.*
 import javax.sql.DataSource
@@ -471,7 +475,7 @@ class TestContainer(val dataSource: HikariDataSource) {
     val classOperatorMap = mutableMapOf<Class<*>, ContainerOperator>()
 
     inline fun <reified T> new(name: String = T::class.java.simpleName.let {
-        taboolib.expansion.AnalyzedClassMember.Companion.run { it.toColumnName() }
+        taboolib.expansion.orm.AnalyzedClassMember.Companion.run { it.toColumnName() }
     }): ContainerOperatorImpl {
         return new(T::class.java, name)
     }
@@ -488,7 +492,7 @@ class TestContainer(val dataSource: HikariDataSource) {
 
     inline fun <reified T> get(): ContainerOperatorImpl {
         val name = T::class.java.simpleName.let {
-            taboolib.expansion.AnalyzedClassMember.Companion.run { it.toColumnName() }
+            taboolib.expansion.orm.AnalyzedClassMember.Companion.run { it.toColumnName() }
         }
         return operator(name)
     }
@@ -557,7 +561,7 @@ class TestTransactionContext(
 
     inline fun <reified T> get(): ContainerOperatorImpl {
         val name = T::class.java.simpleName.let {
-            taboolib.expansion.AnalyzedClassMember.Companion.run { it.toColumnName() }
+            taboolib.expansion.orm.AnalyzedClassMember.Companion.run { it.toColumnName() }
         }
         return operator(name)
     }

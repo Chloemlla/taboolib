@@ -1,8 +1,14 @@
-package taboolib.expansion
+package taboolib.expansion.container
 
 import org.tabooproject.reflex.Reflex.Companion.invokeMethod
-import taboolib.expansion.AnalyzedClassMember.Companion.resolveTableName
-import taboolib.expansion.AnalyzedClassMember.Companion.toColumnName
+import taboolib.expansion.CollectionTableInfo
+import taboolib.expansion.ContainerOperator
+import taboolib.expansion.MigrationConfig
+import taboolib.expansion.operator.ContainerOperatorImpl
+import taboolib.expansion.orm.AnalyzedClass
+import taboolib.expansion.orm.AnalyzedClassMember
+import taboolib.expansion.orm.AnalyzedClassMember.Companion.resolveTableName
+import taboolib.expansion.orm.AnalyzedClassMember.Companion.toColumnName
 import taboolib.module.database.ColumnBuilder
 import taboolib.module.database.Host
 import taboolib.module.database.Table
@@ -12,6 +18,12 @@ abstract class Container<T : ColumnBuilder>(val host: Host<T>) {
 
     val map = ConcurrentHashMap<String, ContainerOperator>()
     val dataSource = host.createDataSource(autoRelease = false)
+
+    /** 表前缀，所有表名统一加此前缀 */
+    var tablePrefix: String = ""
+
+    /** 解析带前缀的表名 */
+    fun resolveTableName(clazz: Class<*>): String = tablePrefix + clazz.resolveTableName()
 
     /** class → 表名映射（用于 @LinkTable 关联查询） */
     val classTableMap = ConcurrentHashMap<Class<*>, String>()
@@ -28,16 +40,23 @@ abstract class Container<T : ColumnBuilder>(val host: Host<T>) {
     /** 版本迁移配置 */
     internal var migrationInstance: MigrationConfig? = null
 
+    /** 数据库方言（由子类提供） */
+    protected abstract val dialect: DatabaseDialect
+
     /** 创建表 */
-    protected abstract fun createTableObject(type: AnalyzedClass, name: String): Table<*, *>
+    protected open fun createTableObject(type: AnalyzedClass, name: String): Table<*, *> {
+        return dialect.createTable(type, name, host)
+    }
 
     /** 创建容器类型子表 */
-    protected abstract fun createCollectionTableObject(
+    protected open fun createCollectionTableObject(
         parentType: AnalyzedClass,
         parentTableName: String,
         member: AnalyzedClassMember,
         childTableName: String
-    ): Table<*, *>
+    ): Table<*, *> {
+        return dialect.createCollectionTable(parentType, parentTableName, member, childTableName, host)
+    }
 
     /** 创建表 */
     open fun createTable(type: AnalyzedClass, name: String) {
@@ -46,7 +65,7 @@ abstract class Container<T : ColumnBuilder>(val host: Host<T>) {
             val linkClass = member.linkTableClass ?: continue
             if (!classOperatorMap.containsKey(linkClass)) {
                 val linkType = AnalyzedClass.of(linkClass)
-                val linkName = linkClass.resolveTableName()
+                val linkName = resolveTableName(linkClass)
                 createTable(linkType, linkName)
             }
         }
@@ -95,6 +114,8 @@ abstract class Container<T : ColumnBuilder>(val host: Host<T>) {
         }
         // 版本迁移
         migrationInstance?.let { runMigrations(it) }
+        // 方言后处理（如创建索引）
+        dialect.postInit(this)
     }
 
     /** 执行版本迁移 */

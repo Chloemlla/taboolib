@@ -2,8 +2,11 @@ package taboolib.expansion
 
 import taboolib.common.platform.function.warning
 import taboolib.common5.*
-import taboolib.expansion.AnalyzedClassMember.Companion.resolveTableName
-import taboolib.expansion.AnalyzedClassMember.Companion.toColumnName
+import taboolib.expansion.orm.AnalyzedClass
+import taboolib.expansion.orm.AnalyzedClassMember
+import taboolib.expansion.orm.AnalyzedClassMember.Companion.resolveTableName
+import taboolib.expansion.orm.AnalyzedClassMember.Companion.toColumnName
+import taboolib.expansion.orm.EntityMapper
 import taboolib.module.database.ActionSelect
 import taboolib.module.database.Filter
 import taboolib.module.database.JoinFilter
@@ -35,7 +38,8 @@ import java.util.*
  */
 class JoinQuery internal constructor(
     private val dataSource: javax.sql.DataSource,
-    private val sharedConnection: Connection? = null
+    private val sharedConnection: Connection? = null,
+    @PublishedApi internal val tablePrefix: String = ""
 ) {
 
     private var tableName: String? = null
@@ -46,10 +50,13 @@ class JoinQuery internal constructor(
     @PublishedApi internal var limitValue = -1
     private var offsetValue = -1
 
-    /** 主表（泛型版，类名自动转 snake_case） */
+    /** 获取带前缀的表名（供 join {} 块内使用） */
+    inline fun <reified T> tableName(): String = tablePrefix + T::class.java.resolveTableName()
+
+    /** 主表（泛型版，类名自动转 snake_case，并应用表前缀） */
     @JvmName("fromTyped")
-    inline fun <reified T> from(name: String = T::class.java.resolveTableName()): JoinQuery {
-        return from(name)
+    inline fun <reified T> from(name: String? = null): JoinQuery {
+        return from(name ?: tableName<T>())
     }
 
     /** 主表 */
@@ -60,20 +67,20 @@ class JoinQuery internal constructor(
 
     /** 内连接（泛型） */
     @JvmName("innerJoinTyped")
-    inline fun <reified T> innerJoin(name: String = T::class.java.resolveTableName(), noinline on: JoinFilter.() -> Unit): JoinQuery {
-        return innerJoin(name, on)
+    inline fun <reified T> innerJoin(name: String? = null, noinline on: JoinFilter.() -> Unit): JoinQuery {
+        return innerJoin(name ?: tableName<T>(), on)
     }
 
     /** 左连接（泛型） */
     @JvmName("leftJoinTyped")
-    inline fun <reified T> leftJoin(name: String = T::class.java.resolveTableName(), noinline on: JoinFilter.() -> Unit): JoinQuery {
-        return leftJoin(name, on)
+    inline fun <reified T> leftJoin(name: String? = null, noinline on: JoinFilter.() -> Unit): JoinQuery {
+        return leftJoin(name ?: tableName<T>(), on)
     }
 
     /** 右连接（泛型） */
     @JvmName("rightJoinTyped")
-    inline fun <reified T> rightJoin(name: String = T::class.java.resolveTableName(), noinline on: JoinFilter.() -> Unit): JoinQuery {
-        return rightJoin(name, on)
+    inline fun <reified T> rightJoin(name: String? = null, noinline on: JoinFilter.() -> Unit): JoinQuery {
+        return rightJoin(name ?: tableName<T>(), on)
     }
 
     /** 内连接 */
@@ -221,13 +228,14 @@ class JoinQuery internal constructor(
     /** 执行查询，反射映射到 data class */
     fun <T> mapTo(type: Class<T>): List<T> {
         val analyzed = AnalyzedClass.of(type)
+        val mapper = EntityMapper.of(type)
         return execute().map { bundle ->
             val map = hashMapOf<String, Any?>()
             analyzed.members.forEach { member ->
                 val raw = (bundle as BundleMapImpl).map[member.name]
                 map[member.name] = convertValue(member, raw)
             }
-            analyzed.createInstance(map)
+            mapper.createInstance(map)
         }
     }
 

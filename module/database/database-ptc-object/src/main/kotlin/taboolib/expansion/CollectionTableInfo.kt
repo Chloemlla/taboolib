@@ -1,5 +1,6 @@
 package taboolib.expansion
 
+import taboolib.expansion.orm.AnalyzedClassMember
 import taboolib.module.database.Table
 
 /**
