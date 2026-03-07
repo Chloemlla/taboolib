@@ -39,15 +39,15 @@ class BukkitIO : PlatformIO {
     }
 
     override fun info(vararg message: Any?) {
-        message.filterNotNull().forEach { plugin.logger.info(it.toString()) }
+        message.forEach { plugin.logger.info(it.toString()) }
     }
 
     override fun severe(vararg message: Any?) {
-        message.filterNotNull().forEach { plugin.logger.severe(it.toString()) }
+        message.forEach { plugin.logger.severe(it.toString()) }
     }
 
     override fun warning(vararg message: Any?) {
-        message.filterNotNull().forEach { plugin.logger.warning(it.toString()) }
+        message.forEach { plugin.logger.warning(it.toString()) }
     }
 
     override fun releaseResourceFile(source: String, target: String, replace: Boolean): File {
