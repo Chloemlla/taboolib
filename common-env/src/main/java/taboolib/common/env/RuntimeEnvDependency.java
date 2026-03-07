@@ -48,7 +48,7 @@ public class RuntimeEnvDependency {
         try {
             Class.forName("com.mohistmc.MohistMC");
             isAetherFound = false;
-        }catch (ClassNotFoundException ignored){
+        } catch (ClassNotFoundException ignored) {
         }
     }
 
@@ -226,46 +226,54 @@ public class RuntimeEnvDependency {
     /**
      * 从本地文件中加载依赖
      */
-    @SuppressWarnings("deprecation")
     public void loadFromLocalFile(URL url) throws Throwable {
         if (url == null) {
             return;
         }
         try (InputStream inputStream = url.openStream()) {
-            JsonElement parsed = new JsonParser().parse(PrimitiveIO.readFully(inputStream, StandardCharsets.UTF_8));
-            if (!parsed.isJsonArray()) return;
-            JsonArray array = parsed.getAsJsonArray();
-            for (JsonElement element : array) {
-                JsonObject object = element.getAsJsonObject();
-                // 获取检查条件
-                List<String> test = new ArrayList<>();
-                for (JsonElement testElement : array(object, "test")) {
-                    test.add(testElement.getAsString());
-                }
-                if (!test.isEmpty() && test.stream().allMatch(this::test)) {
-                    continue;
-                }
-                // 获取依赖信息
-                String value = object.get("value").getAsString();
-                String repository = find(object, "repository", defaultRepositoryCentral);
-                boolean transitive = find(object, "transitive");
-                boolean ignoreOptional = find(object, "ignoreOptional");
-                boolean ignoreException = find(object, "ignoreException");
-                boolean external = find(object, "external");
-                // 读取依赖范围
-                List<DependencyScope> scopes = new ArrayList<>();
-                for (JsonElement scope : array(object, "scopes")) {
-                    scopes.add(DependencyScope.valueOf(scope.getAsString().toUpperCase()));
-                }
-                // 读取重定向规则
-                List<JarRelocation> relocation = new ArrayList<>();
-                JsonArray relocate = array(object, "relocate");
-                for (int i = 0; i + 1 < relocate.size(); i += 2) {
-                    relocation.add(new JarRelocation(relocate.get(i).getAsString(), relocate.get(i + 1).getAsString()));
-                }
-                // 加载依赖
-                loadDependency(value, new File(defaultLibrary), relocation, repository, ignoreOptional, ignoreException, transitive, scopes, external);
+            String json = PrimitiveIO.readFully(inputStream, StandardCharsets.UTF_8);
+            loadFromJson(json);
+        }
+    }
+
+    /**
+     * 读取 JSON 字符串并根据格式加载依赖
+     */
+    public void loadFromJson(String json) throws Throwable {
+        //noinspection deprecation
+        JsonElement parsed = new JsonParser().parse(json);
+        if (!parsed.isJsonArray()) return;
+        JsonArray array = parsed.getAsJsonArray();
+        for (JsonElement element : array) {
+            JsonObject object = element.getAsJsonObject();
+            // 获取检查条件
+            List<String> test = new ArrayList<>();
+            for (JsonElement testElement : array(object, "test")) {
+                test.add(testElement.getAsString());
             }
+            if (!test.isEmpty() && test.stream().allMatch(this::test)) {
+                continue;
+            }
+            // 获取依赖信息
+            String value = object.get("value").getAsString();
+            String repository = find(object, "repository", defaultRepositoryCentral);
+            boolean transitive = find(object, "transitive");
+            boolean ignoreOptional = find(object, "ignoreOptional");
+            boolean ignoreException = find(object, "ignoreException");
+            boolean external = find(object, "external");
+            // 读取依赖范围
+            List<DependencyScope> scopes = new ArrayList<>();
+            for (JsonElement scope : array(object, "scopes")) {
+                scopes.add(DependencyScope.valueOf(scope.getAsString().toUpperCase()));
+            }
+            // 读取重定向规则
+            List<JarRelocation> relocation = new ArrayList<>();
+            JsonArray relocate = array(object, "relocate");
+            for (int i = 0; i + 1 < relocate.size(); i += 2) {
+                relocation.add(new JarRelocation(relocate.get(i).getAsString(), relocate.get(i + 1).getAsString()));
+            }
+            // 加载依赖
+            loadDependency(value, new File(defaultLibrary), relocation, repository, ignoreOptional, ignoreException, transitive, scopes, external);
         }
     }
 

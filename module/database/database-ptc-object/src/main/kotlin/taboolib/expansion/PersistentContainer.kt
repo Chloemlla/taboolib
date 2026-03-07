@@ -2,8 +2,14 @@ package taboolib.expansion
 
 import taboolib.common.io.newFile
 import taboolib.common.platform.function.getDataFolder
-import taboolib.expansion.AnalyzedClassMember.Companion.resolveTableName
-import taboolib.expansion.AnalyzedClassMember.Companion.toColumnName
+import taboolib.expansion.container.Container
+import taboolib.expansion.container.ContainerPostgreSQL
+import taboolib.expansion.container.ContainerSQL
+import taboolib.expansion.container.ContainerSQLite
+import taboolib.expansion.mapper.DataMapperImpl
+import taboolib.expansion.orm.AnalyzedClass
+import taboolib.expansion.orm.AnalyzedClassMember.Companion.resolveTableName
+import taboolib.expansion.orm.AnalyzedClassMember.Companion.toColumnName
 import taboolib.library.configuration.ConfigurationSection
 import taboolib.module.configuration.ConfigLoader
 import taboolib.module.configuration.Configuration
@@ -104,8 +110,9 @@ class PersistentContainer {
             }
             // SQL 模式（根据 type 字段区分 MySQL / PostgreSQL）
             is ConfigurationSection -> {
+                val tablePrefix = type.getString("table-prefix", "")!!
                 val dbType = type.getString("type", "mysql")!!.lowercase()
-                when (dbType) {
+                val c = when (dbType) {
                     "postgresql", "pgsql", "pg" -> {
                         ContainerPostgreSQL(
                             type.getString("host", "localhost")!!,
@@ -130,6 +137,8 @@ class PersistentContainer {
                         )
                     }
                 }
+                c.tablePrefix = tablePrefix
+                c
             }
             // 无效类型
             else -> error("Unsupported source type: $type")
@@ -160,14 +169,19 @@ class PersistentContainer {
     /**
      * 从数据类创建容器
      */
-    inline fun <reified T> new(name: String = T::class.java.resolveTableName()) = new(T::class.java, name)
+    inline fun <reified T> new(name: String? = null) = new(T::class.java, name)
 
     /**
      * 从数据类创建容器
      */
-    fun <T> new(type: Class<T>, name: String = type.resolveTableName()) {
-        container.createTable(AnalyzedClass.of(type), name)
+    fun <T> new(type: Class<T>, name: String? = null) {
+        container.createTable(AnalyzedClass.of(type), name ?: container.resolveTableName(type))
     }
+
+    /**
+     * 解析带前缀的表名
+     */
+    fun resolveTableName(clazz: Class<*>): String = container.resolveTableName(clazz)
 
     /**
      * 获取控制器
@@ -180,7 +194,7 @@ class PersistentContainer {
      * 获取控制器
      */
     inline fun <reified T> get(): ContainerOperator {
-        return get(T::class.java.resolveTableName())
+        return get(container.resolveTableName(T::class.java))
     }
 
     /**
@@ -225,7 +239,7 @@ class PersistentContainer {
      * ```
      */
     fun join(builder: JoinQuery.() -> Unit): JoinQuery {
-        return JoinQuery(container.dataSource).also(builder)
+        return JoinQuery(container.dataSource, tablePrefix = container.tablePrefix).also(builder)
     }
 
     /**

@@ -30,7 +30,7 @@ class RemoteQuestContext(val remote: OpenContainer, val source: Any) : ScriptCon
 
     override fun setExitStatus(exitStatus: ExitStatus) {
         val status = remote.call(StandardChannel.REMOTE_CREATE_EXIT_STATUS, arrayOf(exitStatus.isRunning, exitStatus.isWaiting, exitStatus.startTime))
-        setExitStatusMethod[source].invoke(source, status)
+        setExitStatusMethod[source].invoke(source, status.value)
     }
 
     override fun getExitStatus(): Optional<ExitStatus> {

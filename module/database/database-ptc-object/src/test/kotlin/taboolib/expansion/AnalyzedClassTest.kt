@@ -3,6 +3,8 @@ package taboolib.expansion
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import taboolib.expansion.orm.AnalyzedClass
+import taboolib.expansion.orm.EntityMapper
 
 class AnalyzedClassTest {
 
@@ -39,9 +41,8 @@ class AnalyzedClassTest {
 
     @Test
     fun `createInstance creates object from map`() {
-        val analyzed = AnalyzedClass.of(SimpleData::class.java)
         val map = mapOf("name" to "test", "value" to 42, "description" to "desc")
-        val instance = analyzed.createInstance<SimpleData>(map)
+        val instance = EntityMapper.of(SimpleData::class.java).createInstance(map)
         assertEquals("test", instance.name)
         assertEquals(42, instance.value)
         assertEquals("desc", instance.description)
@@ -49,12 +50,11 @@ class AnalyzedClassTest {
 
     @Test
     fun `createInstance with missing map key passes null`() {
-        val analyzed = AnalyzedClass.of(SimpleData::class.java)
         // 缺失的 key 会导致 map[key] 返回 null，传入构造器
         // SimpleData 的 description 是非空 String，传 null 会导致构造器异常
         val map = mapOf("name" to "test", "value" to 10)
         assertThrows(IllegalStateException::class.java) {
-            analyzed.createInstance<SimpleData>(map)
+            EntityMapper.of(SimpleData::class.java).createInstance(map)
         }
     }
 
@@ -67,9 +67,8 @@ class AnalyzedClassTest {
 
     @Test
     fun `createInstance uses wrapper function when available`() {
-        val analyzed = AnalyzedClass.of(WrapperData::class.java)
         val map = mapOf("id" to "w1", "count" to 99)
-        val instance = analyzed.createInstance<WrapperData>(map)
+        val instance = EntityMapper.of(WrapperData::class.java).createInstance(map)
         assertEquals("w1", instance.id)
         assertEquals(99, instance.count)
     }
@@ -135,9 +134,8 @@ class AnalyzedClassTest {
 
     @Test
     fun `enum createInstance with actual enum values`() {
-        val analyzed = AnalyzedClass.of(EnumData::class.java)
         val map = mapOf<String, Any?>("id" to "e1", "color" to Color.RED, "status" to Status.ACTIVE)
-        val instance = analyzed.createInstance<EnumData>(map)
+        val instance = EntityMapper.of(EnumData::class.java).createInstance(map)
         assertEquals("e1", instance.id)
         assertEquals(Color.RED, instance.color)
         assertEquals(Status.ACTIVE, instance.status)
@@ -150,9 +148,8 @@ class AnalyzedClassTest {
     @Test
     fun `read null values into map for nullable fields`() {
         // 验证 createInstance 可以处理 null 值
-        val analyzed = AnalyzedClass.of(NullableData::class.java)
         val map = mapOf<String, Any?>("id" to "n1", "label" to null, "note" to null)
-        val instance = analyzed.createInstance<NullableData>(map)
+        val instance = EntityMapper.of(NullableData::class.java).createInstance(map)
         assertEquals("n1", instance.id)
         assertNull(instance.label)
         assertNull(instance.note)

@@ -2,7 +2,7 @@ package taboolib.expansion.ioc.persistence
 
 import taboolib.common.platform.function.warning
 import taboolib.expansion.DataMapper
-import taboolib.expansion.DataMapperImpl
+import taboolib.expansion.mapper.DataMapperImpl
 import taboolib.expansion.PersistentContainer
 import taboolib.expansion.db
 import taboolib.expansion.persistentContainer

@@ -2,6 +2,7 @@ package taboolib.common.util
 
 import com.google.common.cache.Cache
 import com.google.common.cache.CacheBuilder
+import java.lang.ref.WeakReference
 import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
 
@@ -43,6 +44,34 @@ fun <C, T> supplierLazy(typeIsolation: Boolean = false, initializer: (C) -> T): 
     } else {
         SupplierLazyImpl(initializer)
     }
+}
+
+/**
+ * 声明一个绑定上下文身份的延迟加载对象
+ *
+ * 当传入的 context 对象（引用相等）未发生变化时，直接返回缓存值。
+ * 当 context 变化时重新调用 initializer。
+ *
+ * @param C 上下文类型
+ * @param T 值类型
+ * @param initializer 初始化函数，接收上下文对象并返回值
+ */
+fun <C : Any, T> identityLazy(initializer: (C) -> T): SupplierLazy<C, T> {
+    return IdentityLazyImpl(initializer)
+}
+
+/**
+ * 声明一个弱引用绑定的延迟加载对象
+ *
+ * 与 [identityLazy] 类似，但使用 [WeakReference] 持有 context。
+ * 当 context 被 GC 回收后，下次访问会重新初始化。
+ *
+ * @param C 上下文类型
+ * @param T 值类型
+ * @param initializer 初始化函数，接收上下文对象并返回值
+ */
+fun <C : Any, T> weakIdentityLazy(initializer: (C) -> T): SupplierLazy<C, T> {
+    return WeakIdentityLazyImpl(initializer)
 }
 
 /**
@@ -195,6 +224,55 @@ private class SupplierLazyWithTypeIsolationImpl<C, T>(private val initializer: (
     }
 
     override fun toString() = if (isInitialized()) "SupplierLazy(typeIsolation) with ${valueMap.size} type(s) initialized" else "SupplierLazy(typeIsolation) value not initialized yet."
+}
+
+private class IdentityLazyImpl<C : Any, T>(private val initializer: (C) -> T) : SupplierLazy<C, T> {
+
+    private var lastContext: C? = null
+    private var localValue: Any? = UninitializedValue
+
+    @Suppress("UNCHECKED_CAST")
+    override fun get(context: C): T {
+        if (localValue === UninitializedValue || lastContext !== context) {
+            localValue = initializer(context)
+            lastContext = context
+        }
+        return localValue as T
+    }
+
+    override fun isInitialized() = localValue !== UninitializedValue
+
+    override fun reset() {
+        lastContext = null
+        localValue = UninitializedValue
+    }
+
+    override fun toString() = if (isInitialized()) localValue.toString() else "IdentityLazy value not initialized yet."
+}
+
+private class WeakIdentityLazyImpl<C : Any, T>(private val initializer: (C) -> T) : SupplierLazy<C, T> {
+
+    private var lastContextRef: WeakReference<C>? = null
+    private var localValue: Any? = UninitializedValue
+
+    @Suppress("UNCHECKED_CAST")
+    override fun get(context: C): T {
+        val lastContext = lastContextRef?.get()
+        if (localValue === UninitializedValue || lastContext !== context) {
+            localValue = initializer(context)
+            lastContextRef = WeakReference(context)
+        }
+        return localValue as T
+    }
+
+    override fun isInitialized() = localValue !== UninitializedValue
+
+    override fun reset() {
+        lastContextRef = null
+        localValue = UninitializedValue
+    }
+
+    override fun toString() = if (isInitialized()) localValue.toString() else "WeakIdentityLazy value not initialized yet."
 }
 
 internal object UninitializedValue
