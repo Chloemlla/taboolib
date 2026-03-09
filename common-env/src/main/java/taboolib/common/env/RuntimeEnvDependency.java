@@ -50,6 +50,10 @@ public class RuntimeEnvDependency {
             isAetherFound = false;
         } catch (ClassNotFoundException ignored) {
         }
+        // 强制使用 Legacy
+        if (PrimitiveSettings.ENABLE_LEGACY_DEPENDENCY_RESOLVER) {
+            isAetherFound = false;
+        }
     }
 
     public List<ParsedDependency> getDependency(@NotNull ReflexClass clazz) {

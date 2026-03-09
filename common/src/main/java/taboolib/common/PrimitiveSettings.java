@@ -114,6 +114,11 @@ public class PrimitiveSettings {
     public static final String FILE_ASSETS = RUNTIME_PROPERTIES.getProperty("file-assets", "assets");
 
     /**
+     * 是否强制使用旧版依赖处理工具
+     */
+    public static boolean ENABLE_LEGACY_DEPENDENCY_RESOLVER = RUNTIME_PROPERTIES.getProperty("enable-legacy-dependency-resolver", "false").equals("true");
+
+    /**
      * 是否启用完全隔离模式
      */
     public static boolean IS_ISOLATED_MODE = RUNTIME_PROPERTIES.getProperty("enable-isolated-classloader", "false").equals("true");
