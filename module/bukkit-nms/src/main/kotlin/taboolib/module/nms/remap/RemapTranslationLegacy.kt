@@ -6,6 +6,8 @@ import taboolib.module.nms.MinecraftVersion
 import java.util.concurrent.ConcurrentHashMap
 
 /**
+ * 旧版本转译器
+ *
  * TabooLib
  * taboolib.module.nms.remap.MinecraftRemapper
  *

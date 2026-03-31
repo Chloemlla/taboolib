@@ -38,6 +38,7 @@ object MinecraftVersion {
     const val V1_19 = 11
     const val V1_20 = 12
     const val V1_21 = 13
+    const val V26_1 = 14
 
     /**
      * 当前运行的版本（字符版本），例如：v1_8_R3
@@ -57,13 +58,17 @@ object MinecraftVersion {
     }
 
     /**
-     * 是否为 universal obc 版本（一般表现为 Paper 1.10.6+ 环境）
+     * 是否为非混淆版本或 mojang mapping 版本（一般表现为 Paper 1.20.6+ 环境）
      */
+    val isMojangMapping: Boolean
+        get() = minecraftVersion == "UNKNOWN" || isUnobfuscated
+
+    @Deprecated("Use isMojangMapping instead.", ReplaceWith("isMojangMapping"))
     val isUniversalCraftBukkit: Boolean
-        get() = minecraftVersion == "UNKNOWN"
+        get() = isMojangMapping
 
     /**
-     * 是否为CatServer
+     * 是否为 CatServer
      * 这些服务端使用自己的重混淆系统，可能与 Taboolib 的 NMS 重映射不兼容
      */
     val isCatServer by unsafeLazy {
@@ -94,7 +99,8 @@ object MinecraftVersion {
         arrayOf("1.18", "1.18.1", "1.18.2"),                                                                                                     // 10
         arrayOf("1.19", "1.19.1", "1.19.2", "1.19.3", "1.19.4"),                                                                                 // 11
         arrayOf("1.20", "1.20.1", "1.20.2", "!1.20.3", "1.20.4", "!1.20.5", "1.20.6"),                                                           // 12 (跳过 1.20.3、1.20.5) NOTICE 从 1.20.5 开始, paper 进行了破坏性修改
-        arrayOf("!1.21", "1.21.1", "!1.21.2", "1.21.3", "1.21.4", "1.21.5", "!1.21.6", "!1.21.7", "1.21.8", "!1.21.9", "1.21.10", "1.21.11")     // 13 (跳过 1.21、1.21.2、1.21.6、1.21.7 和 1.21.9)
+        arrayOf("!1.21", "1.21.1", "!1.21.2", "1.21.3", "1.21.4", "1.21.5", "!1.21.6", "!1.21.7", "1.21.8", "!1.21.9", "1.21.10", "1.21.11"),    // 13 (跳过 1.21、1.21.2、1.21.6、1.21.7 和 1.21.9)
+        arrayOf("26.1")                                                                                                                          // 14 NOTICE 从 26.1 开始, Minecraft 不再被混淆
         // @formatter:on
     )
 
@@ -104,6 +110,7 @@ object MinecraftVersion {
      * + 1.8.8  -> 1 08 08 -> 10808
      * + 1.12.2 -> 1 12 02 -> 11202
      * + 1.21.1 -> 1 21 01 -> 12101
+     * + 26.1.1 -> 26 01 01 -> 260101
      */
     val versionId by unsafeLazy {
         when (major) {
@@ -121,6 +128,7 @@ object MinecraftVersion {
             V1_19 -> 11900
             V1_20 -> 12000
             V1_21 -> 12100
+            V26_1 -> 260100
             else -> 0
         } + minor
     }
@@ -169,6 +177,13 @@ object MinecraftVersion {
     }
 
     /**
+     * 是否为非混淆服务端
+     */
+    val isUnobfuscated by unsafeLazy {
+        major >= V26_1
+    }
+
+    /**
      * 是否支持 BundlePacket 数据包（1.19.4+）
      */
     val isBundlePacketSupported by unsafeLazy {
@@ -183,15 +198,19 @@ object MinecraftVersion {
         if (Exchanges.MAPPING_SPIGOT in Exchanges) {
             Mapping.exchange(Exchanges.MAPPING_SPIGOT)
         } else {
-            val current = SpigotMapping.current
-            if (current == null) {
-                disablePlugin()
-                throw UnsupportedVersionException()
+            if (isUnobfuscated) {
+                Mapping().exchange(Exchanges.MAPPING_SPIGOT)
+            } else {
+                val current = SpigotMapping.current
+                if (current == null) {
+                    disablePlugin()
+                    throw UnsupportedVersionException()
+                }
+                Mapping.spigot(
+                    FileInputStream("assets/${current.combined.substring(0, 2)}/${current.combined}"),
+                    FileInputStream("assets/${current.fields.substring(0, 2)}/${current.fields}"),
+                ).exchange(Exchanges.MAPPING_SPIGOT)
             }
-            Mapping.spigot(
-                FileInputStream("assets/${current.combined.substring(0, 2)}/${current.combined}"),
-                FileInputStream("assets/${current.fields.substring(0, 2)}/${current.fields}"),
-            ).exchange(Exchanges.MAPPING_SPIGOT)
         }
     }
 
@@ -223,7 +242,8 @@ object MinecraftVersion {
         if (Exchanges.MAPPING_PAPER in Exchanges) {
             Mapping.exchange(Exchanges.MAPPING_PAPER)
         } else {
-            Mapping.paper().exchange(Exchanges.MAPPING_PAPER)
+            // 如果是非混淆服务端（26.1+），该文件不存在，不读取
+            (if (isUnobfuscated) Mapping() else Mapping.paper()).exchange(Exchanges.MAPPING_PAPER)
         }
     }
 
@@ -304,8 +324,10 @@ object MinecraftVersion {
             }
         }
         // 在 Bukkit 平台下，注册 Reflex 重定向实现
-        if (runningPlatform == Platform.BUKKIT) {
-            Reflex.remapper.add(if (isUniversalCraftBukkit) RemapReflexPaper() else RemapReflexSpigot())
+        // 如果是非混淆服务端（26.1+），则不注册
+        // TODO: 原本版本出问题
+        if (runningPlatform == Platform.BUKKIT && !isUnobfuscated) {
+            Reflex.remapper.add(if (isMojangMapping) RemapReflexPaper() else RemapReflexSpigot())
         }
     }
 }

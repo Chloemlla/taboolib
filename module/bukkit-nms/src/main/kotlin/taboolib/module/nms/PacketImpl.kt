@@ -24,8 +24,8 @@ class PacketImpl(override var source: Any) : Packet() {
     /** 数据包名称（强制 Spigot 译名）*/
     override val nameInSpigot: String?
         get() {
-            // 如果不是 Paper 服务器则直接返回原名称
-            if (!MinecraftVersion.isUniversalCraftBukkit) return name
+            // 如果不是 Paper 服务器，或非混淆服务端，则直接返回原名称
+            if (MinecraftVersion.isUnobfuscated || !MinecraftVersion.isMojangMapping) return name
             // 借助映射表获取并缓存译名
             if (spigotNameCache.containsKey(fullyName)) {
                 return spigotNameCache[fullyName]!!.orNull()

@@ -32,9 +32,9 @@ import java.util.logging.Level;
 @SuppressWarnings({"SameParameterValue", "unused", "StatementWithEmptyBody", "LoopConditionNotUpdatedInsideLoop", "unchecked", "JavadocBlankLines"})
 public class MeteorInjector implements Closeable {
 
-    private static final Class<?> SERVER_CLASS = getNMSClass("MinecraftServer", "server");
-    private static final Class<?> SERVER_CONNECTION_CLASS = getNMSClass("ServerConnection", "server.network");
-    private static final Class<?> PACKET_LOGIN_OUT_SUCCESS_CLASS = getNMSClass("PacketLoginOutSuccess", "network.protocol.login");
+    private static final Class<?> SERVER_CLASS = getNMSClass("MinecraftServer", "server", "MinecraftServer", "server");
+    private static final Class<?> SERVER_CONNECTION_CLASS = getNMSClass("ServerConnection", "server.network", "ServerConnectionListener", "server.network");
+    private static final Class<?> PACKET_LOGIN_OUT_SUCCESS_CLASS = getNMSClass("PacketLoginOutSuccess", "network.protocol.login", "ClientboundLoginFinishedPacket", "network.protocol.login");
 
     private static final Field NMS_SERVER = getField(getCBClass("CraftServer"), SERVER_CLASS, 1);
     private static final Field NMS_SERVER_CONNECTION = getField(SERVER_CLASS, SERVER_CONNECTION_CLASS, 1);
@@ -289,10 +289,13 @@ public class MeteorInjector implements Closeable {
 
     // ====================================== Reflection stuff ======================================
 
-    private static Class<?> getNMSClass(String name, String mcPackage) {
+    private static Class<?> getNMSClass(String name, String mcPackage, String mojmapName, String mojmapMcPackage) {
         String clazz;
         // NOTICE 从 1.17+ 开始, NMS 不再带有版本号
-        if (MinecraftVersion.INSTANCE.isUniversal()) {
+        if (MinecraftVersion.INSTANCE.isMojangMapping()) {
+            clazz = "net.minecraft." + mojmapMcPackage + '.' + mojmapName;
+        }
+        else if (MinecraftVersion.INSTANCE.isUniversal()) {
             clazz = "net.minecraft." + mcPackage + '.' + name;
         } else {
             clazz = "net.minecraft.server." + MinecraftVersion.INSTANCE.getMinecraftVersion() + '.' + name;

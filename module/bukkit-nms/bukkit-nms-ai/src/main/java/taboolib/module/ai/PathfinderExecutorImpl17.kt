@@ -34,12 +34,12 @@ class PathfinderExecutorImpl17 : PathfinderExecutor() {
     init {
         pathfinderGoalSelectorSet = PathfinderGoalSelector::class.java.getDeclaredField(
             // Paper 1.20.5+ using mojmap
-            if (MinecraftVersion.isUniversalCraftBukkit) "availableGoals" else if (MinecraftVersion.majorLegacy >= 12005) "c" else "d"
+            if (MinecraftVersion.isMojangMapping) "availableGoals" else if (MinecraftVersion.majorLegacy >= 12005) "c" else "d"
         )
         pathfinderGoalSelectorSet.isAccessible = true
         controllerJumpCurrent = ControllerJump::class.java.getDeclaredField(
             // Paper 1.20.5+ using mojmap
-            if (MinecraftVersion.isUniversalCraftBukkit) "jump" else "a"
+            if (MinecraftVersion.isMojangMapping) "jump" else "a"
         )
         controllerJumpCurrent.isAccessible = true
         for (field in NavigationAbstract::class.java.declaredFields) {

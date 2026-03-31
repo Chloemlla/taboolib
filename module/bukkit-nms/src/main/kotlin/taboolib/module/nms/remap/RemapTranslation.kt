@@ -8,6 +8,8 @@ import taboolib.common.reflect.ClassHelper
 import taboolib.module.nms.MinecraftVersion
 
 /**
+ * 插件内部的类
+ *
  * 对于 TabooLib 内的类，
  * 使用 RemapTranslationTabooLib 进行 Spigot Deobf -> Mojang Obf -> Mojang Deobf 转换。
  *
@@ -38,7 +40,7 @@ open class RemapTranslation : Remapper() {
         // obc
         if (key.startsWith("org/bukkit/craftbukkit")) {
             // 若当前使用 Universal CraftBukkit 环境，则移除版本号
-            return key.replace(obc1, if (MinecraftVersion.isUniversalCraftBukkit) obc3 else obc2)
+            return key.replace(obc1, if (MinecraftVersion.isMojangMapping) obc3 else obc2)
         }
         // 统一版本
         return if (MinecraftVersion.isUniversal) {
@@ -48,7 +50,7 @@ open class RemapTranslation : Remapper() {
                 // 先转为 Spigot.FullName
                 var spigotName = MinecraftVersion.spigotMapping.classMapSpigotS2F[key.substringAfterLast('/')] ?: return key
                 // 如果为 Universal CraftBukkit 环境, 则应进一步转译为 Mojang.FullName
-                spigotName = if (MinecraftVersion.isUniversalCraftBukkit) MinecraftVersion.paperMapping.classMapSpigotToMojang[spigotName] ?: spigotName else spigotName
+                spigotName = if (MinecraftVersion.isMojangMapping) MinecraftVersion.paperMapping.classMapSpigotToMojang[spigotName] ?: spigotName else spigotName
                 spigotName.replace('.', '/')
             } else {
                 key
