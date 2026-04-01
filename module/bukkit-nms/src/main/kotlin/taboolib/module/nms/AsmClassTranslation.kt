@@ -70,7 +70,7 @@ class AsmClassTranslation(val source: String) {
             // 若当前运行环境为非混淆服务端，则不应该进行除 dynamic、requires 外的任何转译操作
             val remapper = if (MinecraftVersion.isUnobfuscated) {
                 RemapTranslationUnobfuscated()
-            } else if (MinecraftVersion.isMojangMapping) {
+            } else if (MinecraftVersion.isUniversalCraftBukkit) {
                 // 若当前运行环境为 Paper 时使用新版转换器
                 // 若转译对象为 TabooLib 类，需要特殊处理
                 if (source.startsWith(taboolibPath)) RemapTranslationTabooLib() else RemapTranslation()
@@ -103,8 +103,9 @@ class AsmClassTranslation(val source: String) {
         val mcRunningVersion = MinecraftVersion.runningVersion
         val mcNmsVersion = MinecraftVersion.minecraftVersion
         val isUniversal = MinecraftVersion.isUniversal
-        val isUniversalCB = MinecraftVersion.isMojangMapping
+        val isUniversalCB = MinecraftVersion.isUniversalCraftBukkit
+        val isMojangMapping = MinecraftVersion.isMojangMapping
         val isUnobfuscated = MinecraftVersion.isUnobfuscated
-        return "mcRunning:$mcRunningVersion-nms:$mcNmsVersion-universal:$isUniversal-universalCB:$isUniversalCB-isUnobfuscated:$isUnobfuscated"
+        return "mcRunning:$mcRunningVersion-nms:$mcNmsVersion-universal:$isUniversal-universalCB:$isUniversalCB-mojangMapping:$isMojangMapping-unobfuscated:$isUnobfuscated"
     }
 }

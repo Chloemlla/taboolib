@@ -39,8 +39,17 @@ open class RemapTranslation : Remapper() {
     open fun translate(key: String): String {
         // obc
         if (key.startsWith("org/bukkit/craftbukkit")) {
-            // 若当前使用 Universal CraftBukkit 环境，则移除版本号
-            return key.replace(obc1, if (MinecraftVersion.isMojangMapping) obc3 else obc2)
+            // 如果是 Universal CraftBukkit，则必须去除版本号
+            if (MinecraftVersion.isUniversalCraftBukkit) {
+                return key.replace(obc1, obc3)
+            }
+            // 若非 Universal CraftBukkit 环境，则判断是否有版本号
+            // 如果没有版本号，则补上版本号
+            if (!key.startsWith("org/bukkit/craftbukkit/v1_")) {
+                return key.replace(obc3, obc2)
+            }
+            // 如果有版本号，则替换版本号为当前正在运行的版本
+            return key.replace(obc1, obc2)
         }
         // 统一版本
         return if (MinecraftVersion.isUniversal) {
@@ -49,15 +58,15 @@ open class RemapTranslation : Remapper() {
             if (key.startsWith("net/minecraft/server/v1_")) {
                 // 先转为 Spigot.FullName
                 var spigotName = MinecraftVersion.spigotMapping.classMapSpigotS2F[key.substringAfterLast('/')] ?: return key
-                // 如果为 Universal CraftBukkit 环境, 则应进一步转译为 Mojang.FullName
+                // 如果为 Mojang Mapping 环境, 则应进一步转译为 Mojang.FullName
                 spigotName = if (MinecraftVersion.isMojangMapping) MinecraftVersion.paperMapping.classMapSpigotToMojang[spigotName] ?: spigotName else spigotName
                 spigotName.replace('.', '/')
             } else {
-                // 如果是非 Universal CraftBukkit 环境，且这里是 Mojang.Fullname，则：尝试获取 Spigot.Fullname 并返回，如果获取不到，那么 key 就是 Spigot.Fullname 本身
+                // 如果是非 Mojang Mapping 环境，且这里是 Mojang.Fullname，则：尝试获取 Spigot.Fullname 并返回，如果获取不到，那么 key 就是 Spigot.Fullname 本身
                 if (!MinecraftVersion.isMojangMapping) {
                     MinecraftVersion.paperMapping.classMapMojangToSpigot[key.replace('/', '.')]?.replace('.', '/') ?: key
                 } else {
-                    // 如果为 Universal CraftBukkit 环境，这里不管是 Spigot.Fullname 还是 Mojang.Fullname 都不需要动
+                    // 如果为 Mojang Mapping 环境，这里不管是 Spigot.Fullname 还是 Mojang.Fullname 都不需要动
                     // 如果是 Spigot.Fullname，Paper PluginRemapper 会进行转译
                     key
                 }

@@ -58,14 +58,16 @@ object MinecraftVersion {
     }
 
     /**
-     * 是否为非混淆版本或 mojang mapping 版本（一般表现为 Paper 1.20.6+ 环境）
+     * 是否为非混淆版本或 mojang mapping 版本
      */
     val isMojangMapping: Boolean
-        get() = minecraftVersion == "UNKNOWN" || isUnobfuscated
+        get() = MeteorReflection.isMojangMapping() || isUnobfuscated
 
-    @Deprecated("Use isMojangMapping instead.", ReplaceWith("isMojangMapping"))
+    /**
+     * 是否为 universal craftbukkit 版本（一般表现为 Paper 1.20.6+ 环境）
+     */
     val isUniversalCraftBukkit: Boolean
-        get() = isMojangMapping
+        get() = minecraftVersion == "UNKNOWN"
 
     /**
      * 是否为 CatServer
@@ -358,7 +360,7 @@ object MinecraftVersion {
         // 在 Bukkit 平台下，注册 Reflex 重定向实现
         // 如果是非混淆服务端（26.1+），则不注册
         if (runningPlatform == Platform.BUKKIT && !isUnobfuscated) {
-            Reflex.remapper.add(if (isMojangMapping) RemapReflexPaper() else RemapReflexSpigot())
+            Reflex.remapper.add(if (isUniversalCraftBukkit) RemapReflexPaper() else RemapReflexSpigot())
         }
     }
 }

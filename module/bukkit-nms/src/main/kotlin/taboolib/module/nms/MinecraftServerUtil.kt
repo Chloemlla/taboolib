@@ -48,7 +48,7 @@ val minecraftServerObject: Any by unsafeLazy {
  * 获取 OBC 类
  */
 fun obcClass(name: String): Class<*> {
-    return if (MinecraftVersion.isMojangMapping) {
+    return if (MinecraftVersion.isUniversalCraftBukkit) {
         ClassHelper.getClass("org.bukkit.craftbukkit.$name")
     } else {
         ClassHelper.getClass("org.bukkit.craftbukkit.${MinecraftVersion.minecraftVersion}.$name")

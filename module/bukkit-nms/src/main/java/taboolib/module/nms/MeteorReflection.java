@@ -23,10 +23,16 @@ public class MeteorReflection {
     private static Class<?> paperReflectionHolder;
     private static Method forName;
 
-    private static boolean isMojangMapping = true;
-    private static String minecraftVersion;
+    private static String minecraftVersion = "UNKNOWN";
+
+    private static boolean isMojangMapping = false;
 
     static {
+        try {
+            Class.forName("net.minecraft.core.MappedRegistry");
+            isMojangMapping = true;
+        } catch (Throwable ignored) {
+        }
         try {
             paperReflectionHolder = (Class<Class<?>>) Class.forName(PAPER_REFLECTION_HOLDER);
             forName = paperReflectionHolder.getDeclaredMethod("forName", String.class, boolean.class, ClassLoader.class);
@@ -36,9 +42,12 @@ public class MeteorReflection {
         // 简单判断
         final String obcPackage = Bukkit.getServer().getClass().getName();
         if (obcPackage.startsWith("org.bukkit.craftbukkit.v1_")) {
-            isMojangMapping = false;
-            minecraftVersion = isMojangMapping ? "UNKNOWN" : obcPackage.split("\\.")[3];
+            minecraftVersion = obcPackage.split("\\.")[3];
         }
+    }
+
+    public static boolean isMojangMapping() {
+        return isMojangMapping;
     }
 
     /**
@@ -93,7 +102,7 @@ public class MeteorReflection {
              */
             if (!isMojangMapping) {
                 // 为不带版本的 obc 包名添加版本号
-                if (name.startsWith("org.bukkit.craftbukkit") && !name.startsWith("org.bukkit.craftbukkit.v1")) {
+                if (minecraftVersion != "UNKNOWN" && name.startsWith("org.bukkit.craftbukkit") && !name.startsWith("org.bukkit.craftbukkit.v1")) {
                     name = name.replace("org.bukkit.craftbukkit.", "org.bukkit.craftbukkit." + minecraftVersion);
                 }
                 // 处理 nms 类
