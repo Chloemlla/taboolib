@@ -161,7 +161,7 @@ class Mapping(
                         val reobf = obj["reobf"].asJsonObject
                         reobfFile = reobf["file"].asString
                         reobfHash = reobf["hash"].asString
-                        RuntimeEnv.ENV_ASSETS.loadAssets("", reobfHash, "${OSS_URL}$reobfFile", false)
+                        RuntimeEnv.ENV_ASSETS.loadAssets(reobfHash.substring(0, 2) + File.separator + reobfFile, reobfHash, "${OSS_URL}$reobfFile", false)
                     }
                 }
                 inputStream = FileInputStream("assets/${reobfHash.substring(0, 2)}/$reobfFile")
