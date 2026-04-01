@@ -5,7 +5,7 @@ dependencies {
     compileOnly(project(":module:bukkit-nms"))
     compileOnly(project(":module:bukkit-nms:bukkit-nms-data-serializer"))
     // 服务端
-    compileOnly("ink.ptms.core:v12104:12104:mapped")
+    compileOnly("paper:v12111:12111:core")
     // DataSerializer
     compileOnly("io.netty:netty-all:4.1.73.Final")
 }
