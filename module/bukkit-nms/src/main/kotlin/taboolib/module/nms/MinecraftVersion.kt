@@ -216,7 +216,7 @@ object MinecraftVersion {
 
     /**
      * 当前运行版本的 Paper 映射文件
-     * 仅用与对 TabooLib 本体的 NMSProxy Impl 进行二次转译（插件本体会自动转译）
+     * 一、用于对 TabooLib 本体的 NMSProxy Impl 进行二次转译（插件本体会自动转译）
      *
      * ```
      * 方法/字段逻辑：
@@ -236,6 +236,38 @@ object MinecraftVersion {
      * ```
      *
      * 这么做的原因是要保证 TabooLib 本体必须能够在 Spigot 环境下运行。
+     *
+     * 二、用于在 Spigot Deobf 环境下，将所有 NMSProxy Impl 进行转译
+     *
+     * 在 26.1 版本后，Minecraft 不再被混淆，这意味着不再有混淆表公布
+     * 所以，需要提供一种新的转译逻辑，在 1.17 至 1.20.4 中，将 Mojang Deobf 转译为 Spigot Deobf。
+     *
+     * ```
+     * 方法/字段逻辑：
+     * Spigot Deobf -> Mojang Obf (1.18+)
+     * Mojang Deobf -> Mojang Obf
+     *
+     * 以 SystemUtils 为例：
+     * net/minecraft/Util.backgroundExecutor() -> net/minecraft/SystemUtils.g()
+     *                                         ^
+     *                               通过检索下载到的 Spigot 混淆表获得
+     * net/minecraft/SystemUtils.ioPool() -> net/minecraft/SystemUtils.g()
+     *                                    ^
+     *                  如果是 Paper 服务端则检索服务端里的 reobf.tiny，
+     *                  如果是 Spigot 则下载对应版本的 reobf.tiny 并检索
+     * 类逻辑：
+     * Spigot Deobf 保持不变
+     * Mojang Deobf -> Spigot Deobf
+     *              ^
+     *  通过 reobf.tiny 查找并转译为 Spigot Deobf
+     *
+     * 以 SystemUtils 为例：
+     * net/minecraft/util/SystemUtils 保持不变
+     * net/minecraft/util/Util -> net/minecraft/util/SystemUtils
+     * ```
+     *
+     * 这么做是为了让用户可以在 1.17+ 只通过 Mojang Deobf 而不是 Spigot Deobf 编写 nms 代码，
+     * 而不需要同时为了兼容 26.1 和低版本，编写两套代码。
      */
     val paperMapping by unsafeLazy {
         // 如果已被其他插件加载，直接从内存中读取
@@ -325,7 +357,6 @@ object MinecraftVersion {
         }
         // 在 Bukkit 平台下，注册 Reflex 重定向实现
         // 如果是非混淆服务端（26.1+），则不注册
-        // TODO: 原本版本出问题
         if (runningPlatform == Platform.BUKKIT && !isUnobfuscated) {
             Reflex.remapper.add(if (isMojangMapping) RemapReflexPaper() else RemapReflexSpigot())
         }

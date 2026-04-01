@@ -53,9 +53,17 @@ open class RemapTranslation : Remapper() {
                 spigotName = if (MinecraftVersion.isMojangMapping) MinecraftVersion.paperMapping.classMapSpigotToMojang[spigotName] ?: spigotName else spigotName
                 spigotName.replace('.', '/')
             } else {
-                key
+                // 如果是非 Universal CraftBukkit 环境，且这里是 Mojang.Fullname，则：尝试获取 Spigot.Fullname 并返回，如果获取不到，那么 key 就是 Spigot.Fullname 本身
+                if (!MinecraftVersion.isMojangMapping) {
+                    MinecraftVersion.paperMapping.classMapMojangToSpigot[key.replace('/', '.')]?.replace('.', '/') ?: key
+                } else {
+                    // 如果为 Universal CraftBukkit 环境，这里不管是 Spigot.Fullname 还是 Mojang.Fullname 都不需要动
+                    // 如果是 Spigot.Fullname，Paper PluginRemapper 会进行转译
+                    key
+                }
             }
         } else {
+            // TODO 如果是 Mojang.Fullname 则尝试寻找对应的 Spigot.Fullname
             if (key.startsWith("net/minecraft")) "net/minecraft/server/${MinecraftVersion.minecraftVersion}/${key.substringAfterLast('/')}" else key
         }
     }
