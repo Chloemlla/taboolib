@@ -63,8 +63,11 @@ open class RemapTranslation : Remapper() {
                 }
             }
         } else {
-            // TODO 如果是 Mojang.Fullname 则尝试寻找对应的 Spigot.Fullname
-            if (key.startsWith("net/minecraft")) "net/minecraft/server/${MinecraftVersion.minecraftVersion}/${key.substringAfterLast('/')}" else key
+            // 如果是 Mojang.Fullname 则尝试寻找对应的 Spigot.Fullname
+            if (key.startsWith("net/minecraft")) {
+                val spigotName = MinecraftVersion.paperMapping.classMapMojangToSpigot[key.replace('/', '.')]?.replace('.', '/') ?: key
+                "net/minecraft/server/${MinecraftVersion.minecraftVersion}/${spigotName.substringAfterLast('/')}"
+            } else key
         }
     }
 

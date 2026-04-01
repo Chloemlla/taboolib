@@ -27,6 +27,8 @@ class Mapping(
     // 内存换性能
     // <Spigot.FullName, Mojang.FullName>
     val classMapSpigotToMojang: MutableMap<String, String> = HashMap(),
+    // <Mojang.SimpleName, Mojang.Fullname>
+    val classMapMojangS2F: MutableMap<String, String> = HashMap(),
     // <Mojang.FullName, Spigot.FullName>
     val classMapMojangToSpigot: MutableMap<String, String> = HashMap(),
     // 字段
@@ -41,6 +43,7 @@ class Mapping(
     fun exchange(id: String): Mapping {
         Exchanges["$id#classMapSpigotS2F"] = classMapSpigotS2F
         Exchanges["$id#classMapSpigotToMojang"] = classMapSpigotToMojang
+        Exchanges["$id#classMapMojangS2F"] = classMapMojangS2F
         Exchanges["$id#classMapMojangToSpigot"] = classMapMojangToSpigot
         Exchanges["$id#fields"] = fields.map { arrayOf(it.path, it.mojangName, it.translateName) }
         Exchanges["$id#methods"] = methods.map { arrayOf(it.path, it.mojangName, it.translateName, it.descriptor) }
@@ -181,6 +184,7 @@ class Mapping(
                         val spigotName = args[2].replace('/', '.')
                         mapping.classMapSpigotToMojang[spigotName] = mojangName
                         mapping.classMapMojangToSpigot[mojangName] = spigotName
+                        mapping.classMapMojangS2F[mojangName.substringAfterLast('.', "")] = mojangName
                     }
                     // 方法
                     // Paper 在运行时会将方法转换为 Mojang Deobf 名，但 Spigot 不会（Spigot 环境时，方法名为 Mojang Obf 名）
@@ -216,6 +220,7 @@ class Mapping(
             return Mapping(
                 Exchanges["$id#classMapSpigotS2F"],
                 Exchanges["$id#classMapSpigotToMojang"],
+                Exchanges["$id#classMapMojangS2F"],
                 Exchanges["$id#classMapMojangToSpigot"],
                 Exchanges.get<List<Array<String>>>("$id#fields").mapTo(LinkedList()) { Field(it[0], it[1], it[2]) },
                 Exchanges.get<List<Array<String>>>("$id#methods").mapTo(LinkedList()) { Method(it[0], it[1], it[2], it[3]) }

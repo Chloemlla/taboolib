@@ -62,10 +62,9 @@ fun nmsClass(name: String): Class<*> {
     return if (MinecraftVersion.isUnobfuscated) {
         ClassHelper.getClass("net.minecraft.$name")
     } else {
-        // TODO: nmsClass("net.minecraft.util.SystemUtils") SystemUtils (Spigot Deobf) 与 Util (Mojang Deobf) 互转
         val className = name.split('.').last()
         if (MinecraftVersion.isUniversal) {
-            ClassHelper.getClass(MinecraftVersion.spigotMapping.classMapSpigotS2F[className]?.replace('/', '.') ?: throw ClassNotFoundException(className))
+            ClassHelper.getClass(MinecraftVersion.paperMapping.classMapMojangS2F[className]?.replace('/', '.') ?: MinecraftVersion.spigotMapping.classMapSpigotS2F[className]?.replace('/', '.') ?: throw ClassNotFoundException(className))
         } else {
             ClassHelper.getClass("net.minecraft.server.${MinecraftVersion.minecraftVersion}.$className")
         }
