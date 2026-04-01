@@ -1,5 +1,7 @@
 package taboolib.module.nms.remap
 
+import taboolib.module.nms.MinecraftVersion
+
 /**
  * TabooLib
  * taboolib.module.nms.remap.RemapTranslationUnobfsucated
@@ -9,8 +11,13 @@ package taboolib.module.nms.remap
  */
 class RemapTranslationUnobfuscated : RemapTranslation() {
 
-    override fun map(internalName: String): String {
-        // 非混淆版本服务端不进行任何转译
-        return internalName
+    override fun translate(key: String): String {
+        // obc
+        // 非混淆服务端，只能处理 obc 的版本号了
+        if (key.startsWith("org/bukkit/craftbukkit")) {
+            // 若当前使用 Universal CraftBukkit 环境，则移除版本号
+            return key.replace(obc1, if (MinecraftVersion.isMojangMapping) obc3 else obc2)
+        }
+        return key
     }
 }
