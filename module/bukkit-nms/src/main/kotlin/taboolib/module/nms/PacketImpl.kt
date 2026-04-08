@@ -43,6 +43,32 @@ class PacketImpl(override var source: Any) : Packet() {
             return find
         }
 
+    /** 数据包名称（强制 Mojang 译名）*/
+    override val nameInMojang: String?
+        get() {
+            // 如果是 Paper 服务器，或非混淆服务端，则直接返回原名称
+            if (MinecraftVersion.isUnobfuscated || MinecraftVersion.isMojangMapping) return name
+            // 借助映射表获取并缓存译名
+            if (mojangNameCache.containsKey(fullyName)) {
+                return mojangNameCache[fullyName]!!.orNull()
+            }
+            // 1.16 及以下版本，尝试获取 Spigot 译名
+            val realFullyName = if (!MinecraftVersion.isUniversal)
+                MinecraftVersion.spigotMapping.classMapSpigotS2F[name] ?: fullyName
+            else fullyName
+            val find = MinecraftVersion.paperMapping.classMapSpigotToMojang[realFullyName]?.substringAfterLast('.')
+            if (find == null) {
+                warning(
+                    """
+                        未能找到 $fullyName 的 Mojang 译名。
+                        Cannot find spigot name for $fullyName.
+                    """.t()
+                )
+            }
+            spigotNameCache[fullyName] = Optional.ofNullable(find)
+            return find
+        }
+
     /** 数据包完整名称 */
     override var fullyName = source.javaClass.name.toString()
 
@@ -66,5 +92,6 @@ class PacketImpl(override var source: Any) : Packet() {
     companion object {
 
         val spigotNameCache = Exchanges.getOrPut("packet_spigot_name_cache") { ConcurrentHashMap<String, Optional<String>>() }
+        val mojangNameCache = Exchanges.getOrPut("packet_mojang_name_cache") { ConcurrentHashMap<String, Optional<String>>() }
     }
 }
