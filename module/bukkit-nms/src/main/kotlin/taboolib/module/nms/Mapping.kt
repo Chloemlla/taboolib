@@ -1,6 +1,7 @@
 package taboolib.module.nms
 
 import com.google.gson.JsonParser
+import net.minecraft.server.v1_16_R3.it
 import taboolib.common.PrimitiveIO
 import taboolib.common.env.RuntimeEnv
 import taboolib.common.io.newFile
@@ -220,7 +221,7 @@ class Mapping(
             return Mapping(
                 Exchanges["$id#classMapSpigotS2F"],
                 Exchanges["$id#classMapSpigotToMojang"],
-                Exchanges["$id#classMapMojangS2F"],
+                Exchanges.getOrPut("$id#classMapMojangS2F") { Exchanges.get<Map<String, String>>("$id#classMapSpigotToMojang").values.associateBy { it.substringAfterLast('.', "") }.toMutableMap() },
                 Exchanges["$id#classMapMojangToSpigot"],
                 Exchanges.get<List<Array<String>>>("$id#fields").mapTo(LinkedList()) { Field(it[0], it[1], it[2]) },
                 Exchanges.get<List<Array<String>>>("$id#methods").mapTo(LinkedList()) { Method(it[0], it[1], it[2], it[3]) }
