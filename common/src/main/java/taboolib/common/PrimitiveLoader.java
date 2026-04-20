@@ -56,6 +56,9 @@ public class PrimitiveLoader {
         deps.add(new String[]{"!org.ow2.asm".substring(1), "asm", "9.8"});
         deps.add(new String[]{"!org.ow2.asm".substring(1), "asm-util", "9.8"});
         deps.add(new String[]{"!org.ow2.asm".substring(1), "asm-commons", "9.8"});
+        // 都是必要的 incision 强制依赖
+        deps.add(new String[]{"!org.ow2.asm".substring(1), "asm-tree", "9.8"});
+        deps.add(new String[]{"!org.ow2.asm".substring(1), "asm-analysis", "9.8"});
         return deps;
     }
 
