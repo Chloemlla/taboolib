@@ -191,7 +191,7 @@ object DemoSurgeon {
 ### `@Version`
 
 - 在扫描期决定某条 advice 是否注册
-- 默认 matcher 走 Minecraft/NMS 版本
+- 默认 matcher 从 Bukkit 服务端版本字符串读取 Minecraft 版本
 - 支持自定义 matcher FQCN
 - matcher 解析失败会回退到 Noop matcher，这通常意味着该 advice 不会按预期筛选
 

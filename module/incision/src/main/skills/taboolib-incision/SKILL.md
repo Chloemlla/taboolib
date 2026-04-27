@@ -454,7 +454,7 @@ Use to gate advice by runtime version.
 
 Rules:
 
-- default matcher uses Minecraft/NMS version semantics
+- default matcher reads the Minecraft version from the Bukkit server version string
 - empty `start` means no lower bound
 - empty `end` means no upper bound
 - custom `matcher` is a matcher class FQCN

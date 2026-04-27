@@ -1,12 +1,13 @@
 package taboolib.module.incision.api
 
+import org.tabooproject.reflex.Reflex.Companion.invokeMethod
+import taboolib.common.util.unsafeLazy
 import taboolib.module.incision.diagnostic.Forensics
 
 /**
  * 版本匹配器 —— 抽象"如何取当前版本"以及"如何判断版本是否落在区间内"。
  *
- * 默认实现 [MinecraftVersionMatcher] 通过反射读取 `taboolib.module.nms.MinecraftVersion.runningVersion`，
- * 当 bukkit-nms 模块不在 classpath 时回退为 [NoopVersionMatcher]（始终命中）。
+ * 默认实现 [MinecraftVersionMatcher] 通过 Bukkit 服务端版本字符串读取当前 Minecraft 版本。
  *
  * 外部插件可实现该接口，从自己的 manifest / 配置 / API 拿到版本字符串，
  * 然后在 `@Version(matcher = "com.foo.MyMatcher")` 中指定 FQCN 接入。
@@ -51,8 +52,6 @@ interface VersionMatcher {
 
 /**
  * 永远命中的版本匹配器 —— 不过滤任何 advice。
- *
- * 当 [MinecraftVersionMatcher] 拿不到 NMS 类时回退到这里，保证既有测试不被破坏。
  */
 object NoopVersionMatcher : VersionMatcher {
     override fun current(): String? = null
@@ -60,48 +59,21 @@ object NoopVersionMatcher : VersionMatcher {
 }
 
 /**
- * 默认匹配器 —— 反射读取 [taboolib.module.nms.MinecraftVersion]。
- *
- * 反射失败一律退化为 [NoopVersionMatcher] 行为（current=null → matches=true）。
+ * 默认匹配器 —— 直接从 Bukkit 服务端版本字符串中读取当前 Minecraft 版本。
  */
 object MinecraftVersionMatcher : VersionMatcher {
 
-    @Volatile private var resolved: String? = null
-    @Volatile private var probed = false
-
-    override fun current(): String? {
-        if (probed) return resolved
-        synchronized(this) {
-            if (probed) return resolved
-            resolved = try {
-                val cls = Class.forName("taboolib.module.nms.MinecraftVersion", false, javaClass.classLoader)
-                val instance = cls.getField("INSTANCE").get(null)
-                // universal craftbukkit / remap-only 环境下 minecraftVersion=UNKNOWN，
-                // 此时不把 runningVersion 视作"可稳定匹配的 NMS 版本"，退回 null => matches=true。
-                val mcVersion = tryRead(cls, instance, "minecraftVersion")
-                if (mcVersion == null) null else tryRead(cls, instance, "runningVersion") ?: mcVersion
-            } catch (_: Throwable) {
-                null
-            }
-            probed = true
-            Forensics.debug("MinecraftVersionMatcher: current=$resolved")
-            return resolved
-        }
-    }
-
-    private fun tryRead(cls: Class<*>, instance: Any, name: String): String? {
-        for (getter in listOf(name, "get${name.replaceFirstChar { it.uppercase() }}")) {
-            try {
-                val v = cls.getMethod(getter).invoke(instance)?.toString()
-                if (!v.isNullOrBlank() && v != "UNKNOWN") return v
-            } catch (_: Throwable) {}
-        }
+    val runningVersion: String? by unsafeLazy {
         try {
-            val v = cls.getField(name).get(instance)?.toString()
-            if (!v.isNullOrBlank() && v != "UNKNOWN") return v
-        } catch (_: Throwable) {}
-        return null
+            val versionString = Class.forName("org.bukkit.Bukkit").invokeMethod<Any>("getServer", isStatic = true)!!.invokeMethod<String>("getVersion")!!
+            val version = versionString.split("MC:")[1]
+            version.substring(0, version.length - 1).split(" ")[1].trim()
+        } catch (e: ClassNotFoundException) {
+            null
+        }
     }
+
+    override fun current(): String? = runningVersion
 }
 
 /**

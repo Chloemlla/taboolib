@@ -20,7 +20,7 @@ package taboolib.module.incision.annotation
  * 按段数值比较，缺失段视为 0。
  *
  * 局限：
- * 1. 默认 matcher 读取的是 Minecraft/NMS 语义；若你的版本来源不同，应显式提供 [matcher]。
+ * 1. 默认 matcher 从 Bukkit 服务端版本字符串读取 Minecraft 版本；若你的版本来源不同，应显式提供 [matcher]。
  * 2. `matcher` 解析失败时会回退到 Noop matcher，这通常意味着该 advice 不会按你预期筛选。
  *
  * @see taboolib.module.incision.api.VersionMatcher
