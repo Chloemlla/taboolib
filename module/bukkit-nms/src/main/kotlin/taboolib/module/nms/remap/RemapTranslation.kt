@@ -6,6 +6,7 @@ import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Opcodes
 import taboolib.common.reflect.ClassHelper
 import taboolib.module.nms.MinecraftVersion
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -29,6 +30,7 @@ open class RemapTranslation : Remapper() {
     val obc1 = "org/bukkit/craftbukkit/v1_.*?/".toRegex()
     val obc2 = "org/bukkit/craftbukkit/${MinecraftVersion.minecraftVersion}/"
     val obc3 = "org/bukkit/craftbukkit/"
+    val runtimeClassCache = ConcurrentHashMap<String, Boolean>()
 
     companion object {
 
@@ -95,7 +97,7 @@ open class RemapTranslation : Remapper() {
             } else {
                 // 如果是非 Mojang Mapping 环境，且这里是 Mojang.Fullname，则：尝试获取 Spigot.Fullname 并返回，如果获取不到，那么 key 就是 Spigot.Fullname 本身
                 if (!MinecraftVersion.isMojangMapping) {
-                    MinecraftVersion.paperMapping.classMapMojangToSpigot[key.replace('/', '.')]?.replace('.', '/') ?: key
+                    translateMojangToSpigotOrKeep(key)
                 } else {
                     // 如果为 Mojang Mapping 环境，这里不管是 Spigot.Fullname 还是 Mojang.Fullname 都不需要动
                     // 如果是 Spigot.Fullname，Paper PluginRemapper 会进行转译
@@ -105,9 +107,46 @@ open class RemapTranslation : Remapper() {
         } else {
             // 如果是 Mojang.Fullname 则尝试寻找对应的 Spigot.Fullname
             if (key.startsWith("net/minecraft")) {
-                val spigotName = MinecraftVersion.paperMapping.classMapMojangToSpigot[key.replace('/', '.')]?.replace('.', '/') ?: key
-                "net/minecraft/server/${MinecraftVersion.minecraftVersion}/${spigotName.substringAfterLast('/')}"
+                val translated = translateMojangToSpigotOrKeep(key)
+                if (translated == key) {
+                    return key
+                }
+                "net/minecraft/server/${MinecraftVersion.minecraftVersion}/${translated.substringAfterLast('/')}"
             } else key
+        }
+    }
+
+    /**
+     * 将 Mojang 类名转为 Spigot 类名，运行时已有类名优先保留。
+     */
+    fun translateMojangToSpigotOrKeep(key: String): String {
+        val runtimeName = key.replace('/', '.')
+        val spigotName = MinecraftVersion.paperMapping.classMapMojangToSpigot[runtimeName] ?: return key
+        // 只有映射表确实准备改名时才检查运行时类，避免在普通路径上反复触发类查找。
+        if (spigotName.replace('.', '/') == key) {
+            return key
+        }
+        if (hasRuntimeClass(runtimeName)) {
+            return key
+        }
+        return spigotName.replace('.', '/')
+    }
+
+    /**
+     * 检查类名是否已是当前运行时可直接加载的名称。
+     *
+     * 1.17-1.20.4 存在 Mojang 与 Spigot 同名但语义不同的类，
+     * 例如 Mojang 的 MobEffect 是效果类型，而 Spigot 的 MobEffect 是效果实例。
+     * 先保留运行时已有类名，避免把已正确的 Spigot 名称再次映射到另一个类。
+     */
+    fun hasRuntimeClass(name: String): Boolean {
+        return runtimeClassCache.getOrPut(name) {
+            try {
+                Class.forName(name, false, javaClass.classLoader)
+                true
+            } catch (_: Throwable) {
+                false
+            }
         }
     }
 
