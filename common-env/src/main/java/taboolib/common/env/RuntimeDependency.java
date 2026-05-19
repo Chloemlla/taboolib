@@ -60,4 +60,9 @@ public @interface RuntimeDependency {
      * 是否外部库（不会被扫到）
      */
     boolean external() default true;
+
+    /**
+     * 过滤指定模块
+     */
+    String[] excludes() default {};
 }

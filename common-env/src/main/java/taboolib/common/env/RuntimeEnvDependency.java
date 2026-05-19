@@ -100,7 +100,7 @@ public class RuntimeEnvDependency {
                     relocation.add(new JarRelocation(from, to));
                 }
                 String url = dep.value().startsWith("!") ? dep.value().substring(1) : dep.value();
-                loadDependency(url, baseFile, relocation, dep.repository(), dep.ignoreOptional(), dep.ignoreException(), dep.transitive(), dep.scopes(), dep.external());
+                loadDependency(url, baseFile, relocation, dep.repository(), dep.ignoreOptional(), dep.ignoreException(), dep.transitive(), dep.scopes(), dep.external(), dep.excludes());
             }
         }
         return total;
@@ -130,30 +130,15 @@ public class RuntimeEnvDependency {
         loadDependency(url, baseDir, new ArrayList<>(), repository, true, false, true, Arrays.asList(DependencyScope.RUNTIME, DependencyScope.COMPILE));
     }
 
-    public void loadDependency(
-            @NotNull String url,
-            @NotNull File baseDir,
-            @NotNull List<JarRelocation> relocation,
-            @Nullable String repository,
-            boolean ignoreOptional,
-            boolean ignoreException,
-            boolean transitive,
-            @NotNull List<DependencyScope> scope
-    ) throws Throwable {
+    public void loadDependency(@NotNull String url, @NotNull File baseDir, @NotNull List<JarRelocation> relocation, @Nullable String repository, boolean ignoreOptional, boolean ignoreException, boolean transitive, @NotNull List<DependencyScope> scope) throws Throwable {
         loadDependency(url, baseDir, relocation, repository, ignoreOptional, ignoreException, transitive, scope, true);
     }
 
-    public void loadDependency(
-            @NotNull String url,
-            @NotNull File baseDir,
-            @NotNull List<JarRelocation> relocation,
-            @Nullable String repository,
-            boolean ignoreOptional,
-            boolean ignoreException,
-            boolean transitive,
-            @NotNull List<DependencyScope> scope,
-            boolean external
-    ) throws Throwable {
+    public void loadDependency(@NotNull String url, @NotNull File baseDir, @NotNull List<JarRelocation> relocation, @Nullable String repository, boolean ignoreOptional, boolean ignoreException, boolean transitive, @NotNull List<DependencyScope> scope, boolean external) throws Throwable {
+        loadDependency(url, baseDir, relocation, repository, ignoreOptional, ignoreException, transitive, scope, external, new ArrayList<>());
+    }
+
+    public void loadDependency(@NotNull String url, @NotNull File baseDir, @NotNull List<JarRelocation> relocation, @Nullable String repository, boolean ignoreOptional, boolean ignoreException, boolean transitive, @NotNull List<DependencyScope> scope, boolean external, @NotNull List<String> excludes) throws Throwable {
         // 支持用户对源进行替换
         if (repository == null || repository.isEmpty()) {
             repository = defaultRepositoryCentral;
@@ -170,21 +155,11 @@ public class RuntimeEnvDependency {
                 }
             });
         } else {
-            loadDependencyLegacy(url, baseDir, relocation, repository, ignoreOptional, ignoreException, transitive, scope, external);
+            loadDependencyLegacy(url, baseDir, relocation, repository, ignoreOptional, ignoreException, transitive, scope, external, excludes);
         }
     }
 
-    void loadDependencyLegacy(
-            @NotNull String url,
-            @NotNull File baseDir,
-            @NotNull List<JarRelocation> relocation,
-            String repository,
-            boolean ignoreOptional,
-            boolean ignoreException,
-            boolean transitive,
-            @NotNull List<DependencyScope> scope,
-            boolean external
-    ) throws Throwable {
+    void loadDependencyLegacy(@NotNull String url, @NotNull File baseDir, @NotNull List<JarRelocation> relocation, String repository, boolean ignoreOptional, boolean ignoreException, boolean transitive, @NotNull List<DependencyScope> scope, boolean external, @NotNull List<String> excludes) throws Throwable {
         Artifact artifact = new Artifact(url);
         DependencyDownloader downloader = new DependencyDownloader(baseDir, relocation);
         downloader.addRepository(new Repository(repository));
@@ -192,28 +167,16 @@ public class RuntimeEnvDependency {
         downloader.setIgnoreException(ignoreException);
         downloader.setDependencyScopes(scope);
         downloader.setTransitive(transitive);
+        downloader.setExcludes(excludes);
         // 解析依赖
-        String pomPath = String.format(
-                "%s/%s/%s/%s-%s.pom",
-                artifact.getGroupId().replace('.', '/'),
-                artifact.getArtifactId(),
-                artifact.getVersion(),
-                artifact.getArtifactId(),
-                artifact.getVersion()
-        );
+        String pomPath = String.format("%s/%s/%s/%s-%s.pom", artifact.getGroupId().replace('.', '/'), artifact.getArtifactId(), artifact.getVersion(), artifact.getArtifactId(), artifact.getVersion());
         File pomFile = new File(baseDir, pomPath);
         File pomFile1 = new File(pomFile.getPath() + ".sha1");
         // 验证文件完整性
         if (PrimitiveIO.validation(pomFile, pomFile1)) {
             downloader.loadDependencyFromInputStream(pomFile.toPath().toUri().toURL().openStream());
         } else {
-            PrimitiveIO.println(
-                    t("正在下载依赖 {0}:{1}:{2} {3}", "Downloading library {0}:{1}:{2} {3}"),
-                    artifact.getGroupId(),
-                    artifact.getArtifactId(),
-                    artifact.getVersion(),
-                    transitive ? t("(传递模式)", "(transitive)") : ""
-            );
+            PrimitiveIO.println(t("正在下载依赖 {0}:{1}:{2} {3}", "Downloading library {0}:{1}:{2} {3}"), artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion(), transitive ? t("(传递模式)", "(transitive)") : "");
             downloader.loadDependencyFromInputStream(new URL(repository + "/" + pomPath).openStream());
         }
         // 加载自身
@@ -276,8 +239,10 @@ public class RuntimeEnvDependency {
             for (int i = 0; i + 1 < relocate.size(); i += 2) {
                 relocation.add(new JarRelocation(relocate.get(i).getAsString(), relocate.get(i + 1).getAsString()));
             }
+            List<String> excludes = new ArrayList<>();
+            array(object, "excludes").forEach((e) -> excludes.add(e.getAsString()));
             // 加载依赖
-            loadDependency(value, new File(defaultLibrary), relocation, repository, ignoreOptional, ignoreException, transitive, scopes, external);
+            loadDependency(value, new File(defaultLibrary), relocation, repository, ignoreOptional, ignoreException, transitive, scopes, external, excludes);
         }
     }
 
