@@ -15,6 +15,13 @@ import taboolib.common.platform.function.adaptPlayer
 @PlatformSide(Platform.BUKKIT)
 internal object BukkitResources {
 
+    init {
+        ThrottleFunction.registerGlobalType(Player::class.java)
+        ThrottleFunction.registerGlobalType(ProxyPlayer::class.java)
+        DebounceFunction.registerGlobalType(Player::class.java)
+        DebounceFunction.registerGlobalType(ProxyPlayer::class.java)
+    }
+
     @SubscribeEvent
     fun onQuit(e: PlayerQuitEvent) {
         ThrottleFunction.allThrottleFunctions.forEach {

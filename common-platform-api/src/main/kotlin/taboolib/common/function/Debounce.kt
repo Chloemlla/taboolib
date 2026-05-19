@@ -12,12 +12,14 @@ abstract class DebounceFunction<K : Any>(
     val async: Boolean = false,
 ) {
     val futureMap = ConcurrentHashMap<K, PlatformExecutor.PlatformTask>()
+    val tokenMap = ConcurrentHashMap<K, Any>()
 
     /**
      * 移除指定键的防抖任务
      * @param key 要移除的防抖任务的键
      */
     fun removeKey(key: Any) {
+        tokenMap.remove(key)
         futureMap.remove(key)?.cancel()
     }
 
@@ -26,6 +28,7 @@ abstract class DebounceFunction<K : Any>(
      * 取消所有正在执行的任务并清空任务映射表
      */
     fun clearAll() {
+        tokenMap.clear()
         futureMap.values.forEach { it.cancel() }
         futureMap.clear()
     }
@@ -45,16 +48,20 @@ abstract class DebounceFunction<K : Any>(
 
         var task: PlatformExecutor.PlatformTask? = null
 
-        init {
-            addDebounceFunction(this)
-        }
-
         /**
          * 调用防抖函数
          * @param delay 延迟时间（毫秒），默认使用构造时设定的延迟时间
          */
         operator fun invoke(delay: Long = this.delay) {
-            val future = submit(async = async, delay = delay / 50) { action() }
+            val future = submit(async = async, delay = delay / 50) {
+                try {
+                    action()
+                } finally {
+                    if (task === this) {
+                        task = null
+                    }
+                }
+            }
             task?.cancel()
             task = future
         }
@@ -77,7 +84,9 @@ abstract class DebounceFunction<K : Any>(
     ) : DebounceFunction<K>(keyType, delay, async) {
 
         init {
-            addDebounceFunction(this)
+            if (isGlobalType(keyType)) {
+                addDebounceFunction(this)
+            }
         }
 
         /**
@@ -87,9 +96,24 @@ abstract class DebounceFunction<K : Any>(
          * @param delay 延迟时间（毫秒），默认使用构造时设定的延迟时间
          */
         operator fun invoke(key: K, delay: Long = this.delay) {
-            val future = submit(async = async, delay = delay / 50) { action(key) }
-            futureMap[key]?.cancel()
-            futureMap[key] = future
+            val token = Any()
+            tokenMap[key] = token
+            val future = submit(async = async, delay = delay / 50) {
+                try {
+                    if (tokenMap[key] === token) {
+                        action(key)
+                    }
+                } finally {
+                    if (tokenMap.remove(key, token)) {
+                        futureMap.remove(key)
+                    }
+                }
+            }
+            futureMap.put(key, future)?.cancel()
+            if (tokenMap[key] !== token) {
+                future.cancel()
+                futureMap.remove(key, future)
+            }
         }
     }
 
@@ -111,7 +135,9 @@ abstract class DebounceFunction<K : Any>(
     ) : DebounceFunction<K>(keyType, delay, async) {
 
         init {
-            addDebounceFunction(this)
+            if (isGlobalType(keyType)) {
+                addDebounceFunction(this)
+            }
         }
 
         /**
@@ -122,15 +148,42 @@ abstract class DebounceFunction<K : Any>(
          * @param delay 延迟时间（毫秒），默认使用构造时设定的延迟时间
          */
         operator fun invoke(key: K, param: T, delay: Long = this.delay) {
-            val future = submit(async = async, delay = delay / 50) { action(key, param) }
-            futureMap[key]?.cancel()
-            futureMap[key] = future
+            val token = Any()
+            tokenMap[key] = token
+            val future = submit(async = async, delay = delay / 50) {
+                try {
+                    if (tokenMap[key] === token) {
+                        action(key, param)
+                    }
+                } finally {
+                    if (tokenMap.remove(key, token)) {
+                        futureMap.remove(key)
+                    }
+                }
+            }
+            futureMap.put(key, future)?.cancel()
+            if (tokenMap[key] !== token) {
+                future.cancel()
+                futureMap.remove(key, future)
+            }
         }
     }
 
     companion object {
 
         val allDebounceFunctions = CopyOnWriteArrayList<DebounceFunction<*>>()
+
+        val globalTypes = CopyOnWriteArrayList<Class<*>>()
+
+        fun registerGlobalType(type: Class<*>) {
+            if (type !in globalTypes) {
+                globalTypes += type
+            }
+        }
+
+        fun isGlobalType(type: Class<*>): Boolean {
+            return globalTypes.any { it == type }
+        }
 
         fun addDebounceFunction(debounceFunction: DebounceFunction<*>) {
             allDebounceFunctions.add(debounceFunction)

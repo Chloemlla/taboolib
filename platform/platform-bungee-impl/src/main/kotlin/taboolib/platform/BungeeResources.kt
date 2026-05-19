@@ -15,6 +15,13 @@ import taboolib.common.platform.function.adaptPlayer
 @PlatformSide(Platform.BUNGEE)
 internal object BungeeResources {
 
+    init {
+        ThrottleFunction.registerGlobalType(ProxiedPlayer::class.java)
+        ThrottleFunction.registerGlobalType(ProxyPlayer::class.java)
+        DebounceFunction.registerGlobalType(ProxiedPlayer::class.java)
+        DebounceFunction.registerGlobalType(ProxyPlayer::class.java)
+    }
+
     @SubscribeEvent
     fun onQuit(e: PlayerDisconnectEvent) {
         ThrottleFunction.allThrottleFunctions.forEach {

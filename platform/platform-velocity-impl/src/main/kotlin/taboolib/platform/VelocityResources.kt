@@ -15,6 +15,13 @@ import taboolib.common.platform.function.adaptPlayer
 @PlatformSide(Platform.VELOCITY)
 internal object VelocityResources {
 
+    init {
+        ThrottleFunction.registerGlobalType(Player::class.java)
+        ThrottleFunction.registerGlobalType(ProxyPlayer::class.java)
+        DebounceFunction.registerGlobalType(Player::class.java)
+        DebounceFunction.registerGlobalType(ProxyPlayer::class.java)
+    }
+
     @SubscribeEvent
     fun onQuit(e: DisconnectEvent) {
         ThrottleFunction.allThrottleFunctions.forEach {

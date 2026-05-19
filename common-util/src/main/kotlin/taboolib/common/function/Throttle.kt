@@ -58,10 +58,6 @@ abstract class ThrottleFunction<K : Any>(
 
         private var lastExecuteTime = 0L
 
-        init {
-            addThrottleFunction(this)
-        }
-
         fun canExecute(delay: Long = this.delay): Boolean {
             return canExecute(Unit, delay)
         }
@@ -98,7 +94,9 @@ abstract class ThrottleFunction<K : Any>(
     ) : ThrottleFunction<K>(keyType, delay) {
 
         init {
-            addThrottleFunction(this)
+            if (isGlobalType(keyType)) {
+                addThrottleFunction(this)
+            }
         }
 
         /**
@@ -128,7 +126,9 @@ abstract class ThrottleFunction<K : Any>(
     ) : ThrottleFunction<K>(keyType, delay) {
 
         init {
-            addThrottleFunction(this)
+            if (isGlobalType(keyType)) {
+                addThrottleFunction(this)
+            }
         }
 
         /**
@@ -147,6 +147,21 @@ abstract class ThrottleFunction<K : Any>(
 
         // 所有被创建的节流函数
         val allThrottleFunctions = CopyOnWriteArrayList<ThrottleFunction<*>>()
+
+        // 需要被平台事件全局清理的键类型
+        val globalTypes = CopyOnWriteArrayList<Class<*>>()
+
+        // 注册需要被平台事件全局清理的键类型
+        fun registerGlobalType(type: Class<*>) {
+            if (type !in globalTypes) {
+                globalTypes += type
+            }
+        }
+
+        // 判断键类型是否需要注册到全局清理列表
+        fun isGlobalType(type: Class<*>): Boolean {
+            return globalTypes.any { it == type }
+        }
 
         // 添加节流函数到列表
         fun addThrottleFunction(throttleFunction: ThrottleFunction<*>) {
