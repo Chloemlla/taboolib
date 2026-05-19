@@ -17,6 +17,7 @@ import org.bukkit.craftbukkit.entity.CraftPlayer
 import org.bukkit.entity.Player
 import org.bukkit.permissions.Permission
 import taboolib.common.util.unsafeLazy
+import taboolib.module.nms.MinecraftVersion
 import taboolib.module.nms.nmsClass
 import java.lang.reflect.Constructor
 import java.lang.reflect.Method
@@ -153,7 +154,12 @@ class PlayerFakeOpNMSImpl : PlayerFakeOpNMS() {
         private lateinit var tempCraftPlayer: CraftPlayer
 
         init {
-            val entityPlayerClass = nmsClass("EntityPlayer")
+            // 26.1+ 非混淆服务端，Spigot/Paper 映射表为空，直接使用 Mojang Deobf 全限定名
+            val entityPlayerClass = if (MinecraftVersion.isUnobfuscated) {
+                Class.forName("net.minecraft.server.level.ServerPlayer")
+            } else {
+                nmsClass("EntityPlayer")
+            }
             // Generate the bytecode of the new class, which extends CraftPlayer
             val dynamicType = ByteBuddy()
                 .subclass(CraftPlayer::class.java)
