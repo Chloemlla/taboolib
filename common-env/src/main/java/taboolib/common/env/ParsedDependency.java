@@ -3,6 +3,7 @@ package taboolib.common.env;
 import org.tabooproject.reflex.LazyEnum;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -62,7 +63,12 @@ public class ParsedDependency {
      */
     private final boolean external;
 
-    public ParsedDependency(String value, String test, String repository, boolean transitive, boolean ignoreOptional, boolean ignoreException, List<DependencyScope> scopes, List<String> relocate, boolean external) {
+    /**
+     * 过滤库
+     */
+    private final List<String> excludes;
+
+    public ParsedDependency(String value, String test, String repository, boolean transitive, boolean ignoreOptional, boolean ignoreException, List<DependencyScope> scopes, List<String> relocate, boolean external, List<String> excludes) {
         this.value = value;
         this.test = test;
         this.repository = repository;
@@ -72,6 +78,7 @@ public class ParsedDependency {
         this.scopes = scopes;
         this.relocate = relocate;
         this.external = external;
+        this.excludes = excludes;
     }
 
     @SuppressWarnings("unchecked")
@@ -84,9 +91,10 @@ public class ParsedDependency {
         this.ignoreException = (boolean) map.getOrDefault("ignoreException", false);
         this.relocate = (List<String>) map.getOrDefault("relocate", new ArrayList<>());
         this.external = (boolean) map.getOrDefault("external", true);
-        this.scopes = new ArrayList<>();
+        this.scopes = new ArrayList<>(Arrays.asList(DependencyScope.RUNTIME, DependencyScope.COMPILE));
         List<LazyEnum> scopesEnums = (List<LazyEnum>) map.getOrDefault("scopes", new ArrayList<>());
         scopesEnums.forEach(it -> this.scopes.add((DependencyScope) it.getInstance()));
+        this.excludes = (List<String>) map.getOrDefault("excludes", new ArrayList<>());
     }
 
     public String value() {
@@ -125,6 +133,10 @@ public class ParsedDependency {
         return external;
     }
 
+    public List<String> excludes() {
+        return excludes;
+    }
+
     @Override
     public String toString() {
         return "ParsedDependency{" +
@@ -137,6 +149,7 @@ public class ParsedDependency {
                 ", scopes=" + scopes +
                 ", relocate=" + relocate +
                 ", external=" + external +
+                ", exclude =" + excludes +
                 '}';
     }
 }

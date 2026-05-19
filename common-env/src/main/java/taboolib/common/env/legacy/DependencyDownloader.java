@@ -83,6 +83,11 @@ public class DependencyDownloader extends AbstractXmlParser {
      */
     private boolean isTransitive = true;
 
+    /**
+     * 过滤指定内容
+     */
+    private List<String> excludes = new ArrayList<>();
+
     public DependencyDownloader(@Nullable File baseDir) {
         this.baseDir = baseDir;
     }
@@ -181,6 +186,9 @@ public class DependencyDownloader extends AbstractXmlParser {
             Set<Dependency> singleton = new HashSet<>();
             singleton.add(dependency);
             return singleton;
+        }
+        if (excludes.contains(dependency.getGroupId() + ":" + dependency.getArtifactId())) {
+            return new HashSet<>();
         }
         // 获取依赖项的 pom 文件和 jar 文件
         File pom = dependency.findFile(baseDir, "pom");
@@ -357,5 +365,13 @@ public class DependencyDownloader extends AbstractXmlParser {
 
     public void setTransitive(boolean transitive) {
         isTransitive = transitive;
+    }
+
+    public List<String> getExcludes() {
+        return excludes;
+    }
+
+    public void setExcludes(List<String> excludes) {
+        this.excludes = excludes;
     }
 }
