@@ -1,6 +1,8 @@
 package taboolib.module.navigation
 
 import org.bukkit.util.Vector
+import taboolib.platform.Folia
+import taboolib.platform.util.callRegion
 import java.util.*
 import kotlin.math.*
 
@@ -95,8 +97,15 @@ object RandomPositionGenerator {
      * @param requireWalkable 依赖可行走的方块
      */
     fun generate(nodeEntity: NodeEntity, rX: Int, yY: Int, start: Vector?, onWater: Boolean, aboveLand: Boolean, requireWalkable: Boolean): Vector? {
+        return nodeEntity.location.callRegion {
+            generateAtRegion(nodeEntity, rX, yY, start, onWater, aboveLand, requireWalkable)
+        }
+    }
+
+    private fun generateAtRegion(nodeEntity: NodeEntity, rX: Int, yY: Int, start: Vector?, onWater: Boolean, aboveLand: Boolean, requireWalkable: Boolean): Vector? {
         val random: Random = nodeEntity.random
         val navigation = PathTypeFactory(nodeEntity)
+        val world = nodeEntity.location.world!!
         val hasRestriction: Boolean = if (nodeEntity.hasRestriction) {
             nodeEntity.restrictCenter.closerThan(nodeEntity.location.toCommonVector(), (nodeEntity.restrictRadius + rX.toFloat()).toDouble() + 1.0)
         } else {
@@ -138,11 +147,20 @@ object RandomPositionGenerator {
             }
             if (aboveLand) {
                 result = moveUp(result, 0, 256) {
-                    nodeEntity.location.world!!.getBlockAt(it.toLocation(nodeEntity.location.world!!)).type.isSolid
+                    if (Folia.isFolia) {
+                        world.getBlockAtIfLoaded(it)?.type?.isSolid == true
+                    } else {
+                        world.getBlockAt(it.toLocation(world)).type.isSolid
+                    }
                 }
             }
-            if (onWater || nodeEntity.location.world!!.getBlockAt(result.toLocation(nodeEntity.location.world!!)).type.isWater()) {
-                val type = navigation.getTypeAsWalkable(nodeEntity.location.world!!, result)
+            val blockType = if (Folia.isFolia) {
+                world.getBlockAtIfLoaded(result)?.type
+            } else {
+                world.getBlockAt(result.toLocation(world)).type
+            }
+            if (onWater || blockType?.isWater() == true) {
+                val type = navigation.getTypeAsWalkable(world, result)
                 if (nodeEntity.getPathfindingMalus(type) == 0.0f) {
                     val walk = nodeEntity.getWalkTargetValue(result)
                     if (walk > sort) {

@@ -3,6 +3,7 @@ package taboolib.module.navigation
 import org.bukkit.util.NumberConversions
 import org.bukkit.util.Vector
 import taboolib.module.navigation.Fluid.Companion.getFluid
+import taboolib.platform.util.callRegion
 import kotlin.math.abs
 
 /**
@@ -50,6 +51,12 @@ open class NodeReader(val entity: NodeEntity) {
      * 获取起点
      */
     fun getStart(): Node {
+        return entity.location.callRegion {
+            getStartAtRegion()
+        }
+    }
+
+    private fun getStartAtRegion(): Node {
         val position = Vector(0, 0, 0)
         var y = entity.location.blockY
         var block = world.getBlockAt(position.set(entity.location.blockX, y, entity.location.blockZ))
@@ -109,9 +116,11 @@ open class NodeReader(val entity: NodeEntity) {
      * 指最顶层碰撞箱 maxY > 0 的方块
      */
     fun getLandHeight(position: Vector): Double {
-        val block = position.toBlock(world)
-        val blockHeight = NMS.instance.getBlockHeight(block)
-        return if (blockHeight == 0.0) 0.0 else blockHeight + block.y
+        return position.toLocation(world).callRegion {
+            val block = position.toBlock(world)
+            val blockHeight = NMS.instance.getBlockHeight(block)
+            if (blockHeight == 0.0) 0.0 else blockHeight + block.y
+        }
     }
 
     /**
@@ -126,6 +135,12 @@ open class NodeReader(val entity: NodeEntity) {
      * @param z z
      */
     open fun getLandNode(x: Int, y: Int, z: Int): Node? {
+        return Vector(x, y, z).toLocation(world).callRegion {
+            getLandNodeAtRegion(x, y, z)
+        }
+    }
+
+    private fun getLandNodeAtRegion(x: Int, y: Int, z: Int): Node? {
         var h = y
         var node: Node? = null
         // 获取方块类型
@@ -215,6 +230,12 @@ open class NodeReader(val entity: NodeEntity) {
      * 临近合法
      */
     open fun isNeighborValid(neighbor: Node?, node: Node): Boolean {
+        return node.asBlockPos().toLocation(world).callRegion {
+            isNeighborValidAtRegion(neighbor, node)
+        }
+    }
+
+    private fun isNeighborValidAtRegion(neighbor: Node?, node: Node): Boolean {
         if (neighbor != null && !neighbor.isClosed && (neighbor.costMalus >= 0.0f || node.costMalus < 0.0f)) {
             val blockHeight = NMS.instance.getBlockHeight(node.asBlockPos().down().toBlock(world)) + node.y - 1
             val neighborHeight = NMS.instance.getBlockHeight(neighbor.asBlockPos().down().toBlock(world)) + neighbor.y - 1
@@ -247,6 +268,12 @@ open class NodeReader(val entity: NodeEntity) {
     }
 
     open fun getNeighbors(nodes: Array<Node?>, node: Node): Int {
+        return node.asBlockPos().toLocation(world).callRegion {
+            getNeighborsAtRegion(nodes, node)
+        }
+    }
+
+    private fun getNeighborsAtRegion(nodes: Array<Node?>, node: Node): Int {
         var neighbors = 0
         // 北
         val north = getLandNode(node.x, node.y, node.z - 1)

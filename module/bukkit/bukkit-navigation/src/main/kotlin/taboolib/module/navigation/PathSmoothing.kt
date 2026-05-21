@@ -1,7 +1,9 @@
 package taboolib.module.navigation
 
+import org.bukkit.Location
 import org.bukkit.World
 import org.bukkit.util.Vector
+import taboolib.platform.util.callRegion
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.sqrt
@@ -25,6 +27,12 @@ object PathSmoothing {
      * 返回平滑后的世界坐标点列表（方块中心）
      */
     fun smooth(path: Path, entity: NodeEntity): List<Vector> {
+        return entity.location.callRegion {
+            smoothAtRegion(path, entity)
+        }
+    }
+
+    private fun smoothAtRegion(path: Path, entity: NodeEntity): List<Vector> {
         val nodes = path.nodes
         if (nodes.size <= 2) {
             return nodes.map { nodeCenter(it) }
@@ -38,7 +46,7 @@ object PathSmoothing {
             for (probe in (current + 2)..last) {
                 // y 不同时不跨越高度差
                 if (nodes[probe].y != nodes[current].y) break
-                if (hasLineOfSight(nodeCenter(nodes[current]), nodeCenter(nodes[probe]), entity, world)) {
+                if (hasLineOfSightAtRegion(nodeCenter(nodes[current]), nodeCenter(nodes[probe]), entity, world)) {
                     farthest = probe
                 }
             }
@@ -52,6 +60,12 @@ object PathSmoothing {
      * 检查两点之间是否存在无障碍直线路径
      */
     fun hasLineOfSight(from: Vector, to: Vector, entity: NodeEntity, world: World): Boolean {
+        return Location(world, from.x, from.y, from.z).callRegion {
+            hasLineOfSightAtRegion(from, to, entity, world)
+        }
+    }
+
+    private fun hasLineOfSightAtRegion(from: Vector, to: Vector, entity: NodeEntity, world: World): Boolean {
         val dx = to.x - from.x
         val dz = to.z - from.z
         val dist = sqrt(dx * dx + dz * dz)
@@ -61,7 +75,7 @@ object PathSmoothing {
             val t = i.toDouble() / steps
             val x = from.x + dx * t
             val z = from.z + dz * t
-            if (!isStandable(x, from.y, z, entity, world)) return false
+            if (!isStandableAtRegion(x, from.y, z, entity, world)) return false
         }
         return true
     }
@@ -72,6 +86,12 @@ object PathSmoothing {
      * - 实体碰撞箱范围内无不可通行方块
      */
     fun isStandable(x: Double, y: Double, z: Double, entity: NodeEntity, world: World): Boolean {
+        return Location(world, x, y, z).callRegion {
+            isStandableAtRegion(x, y, z, entity, world)
+        }
+    }
+
+    private fun isStandableAtRegion(x: Double, y: Double, z: Double, entity: NodeEntity, world: World): Boolean {
         val halfWidth = entity.width / 2.0
         val halfDepth = entity.depth / 2.0
         val minBx = floor(x - halfWidth).toInt()
