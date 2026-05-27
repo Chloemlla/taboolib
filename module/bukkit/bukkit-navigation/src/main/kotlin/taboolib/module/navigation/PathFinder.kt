@@ -3,6 +3,7 @@ package taboolib.module.navigation
 import com.google.common.collect.Lists
 import org.bukkit.Location
 import org.bukkit.util.Vector
+import taboolib.platform.util.callRegion
 
 /**
  * Navigation
@@ -25,6 +26,12 @@ class PathFinder(val nodeReader: NodeReader, val heuristicWeight: Float = 1.5f) 
     }
 
     fun findPath(position: Set<Vector>, distance: Float, distanceManhattan: Int = 1, deep: Float = 1f): Path? {
+        return nodeReader.entity.location.callRegion {
+            findPathAtRegion(position, distance, distanceManhattan, deep)
+        }
+    }
+
+    private fun findPathAtRegion(position: Set<Vector>, distance: Float, distanceManhattan: Int, deep: Float): Path? {
         openSet.clear()
         val start = nodeReader.getStart()
         val map = position.map {

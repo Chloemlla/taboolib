@@ -1,5 +1,7 @@
 dependencies {
     compileOnly(project(":common"))
+    compileOnly(project(":platform:platform-bukkit"))
+    compileOnly(project(":platform:platform-bukkit-impl"))
     compileOnly(project(":module:bukkit-nms"))
     // 服务端
     compileOnly("ink.ptms.core:v12101:12101-minimize:mapped")

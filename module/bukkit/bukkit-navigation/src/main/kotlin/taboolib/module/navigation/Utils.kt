@@ -7,6 +7,7 @@ import org.bukkit.block.Block
 import org.bukkit.util.NumberConversions
 import org.bukkit.util.Vector
 import taboolib.module.nms.MinecraftVersion
+import taboolib.platform.util.callRegion
 
 fun createPathfinder(nodeEntity: NodeEntity): PathFinder {
     return PathFinder(NodeReader(nodeEntity))
@@ -17,10 +18,15 @@ fun World.getBlockAt(position: Vector): Block {
 }
 
 fun World.getBlockAtIfLoaded(position: Vector): Block? {
-    return if (ChunkAccess.instance.isChunkLoaded(this, position.blockX shr 4, position.blockZ shr 4)) {
-        getBlockAt(position.blockX, position.blockY, position.blockZ)
-    } else {
-        null
+    val x = position.blockX
+    val y = position.blockY
+    val z = position.blockZ
+    return callRegion(x, y, z) {
+        if (ChunkAccess.instance.isChunkLoaded(this, x shr 4, z shr 4)) {
+            getBlockAt(x, y, z)
+        } else {
+            null
+        }
     }
 }
 

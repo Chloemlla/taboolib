@@ -5,6 +5,7 @@ import org.bukkit.Location
 import org.bukkit.World
 import org.bukkit.block.BlockFace
 import org.bukkit.util.Vector
+import taboolib.platform.util.callRegion
 import java.util.*
 
 /**
@@ -69,7 +70,9 @@ open class NodeEntity(
     }
 
     fun getWalkTargetValue(pos: Vector): Double {
-        return this.getWalkTargetValue(pos, location.world!!)
+        return location.callRegion {
+            this.getWalkTargetValue(pos, location.world!!)
+        }
     }
 
     /**
@@ -94,11 +97,15 @@ open class NodeEntity(
     }
 
     open fun isInWater(): Boolean {
-        return location.block.isLiquid
+        return location.callRegion {
+            location.block.isLiquid
+        }
     }
 
     open fun isOnGround(): Boolean {
-        return location.block.getRelative(BlockFace.DOWN).type.isSolid
+        return location.callRegion {
+            location.block.getRelative(BlockFace.DOWN).type.isSolid
+        }
     }
 
     open fun getAirSupply(): Int {
