@@ -12,6 +12,7 @@ import org.openjdk.nashorn.api.scripting.NashornScriptEngineFactory
 import taboolib.common.Inject
 import taboolib.common.env.RuntimeDependencies
 import taboolib.common.env.RuntimeDependency
+import java.io.Reader
 import javax.script.Compilable
 import javax.script.CompiledScript
 import javax.script.ScriptEngine
@@ -30,5 +31,9 @@ val scriptEngine: ScriptEngine by lazy {
 }
 
 fun String.compileJS(): CompiledScript? {
+    return (scriptEngine as? Compilable)?.compile(this)
+}
+
+fun Reader.compileJS(): CompiledScript? {
     return (scriptEngine as? Compilable)?.compile(this)
 }
