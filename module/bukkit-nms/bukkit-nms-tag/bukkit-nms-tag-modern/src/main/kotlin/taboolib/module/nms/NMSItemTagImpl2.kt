@@ -1,6 +1,7 @@
 package taboolib.module.nms
 
 import net.minecraft.advancements.criterion.BlockPredicate
+import net.minecraft.core.HolderGetter
 import net.minecraft.core.component.DataComponentType
 import net.minecraft.core.component.DataComponents
 import net.minecraft.core.registries.BuiltInRegistries
@@ -48,7 +49,9 @@ class NMSItemTagImpl2 : NMSItemTag() {
     override fun getItemTag(itemStack: ItemStack, onlyCustom: Boolean): ItemTag {
         val nmsItem = getNMSCopy(itemStack)
         return if (onlyCustom) {
-            val tag = nmsItem.get(DataComponents.CUSTOM_DATA)?.copyTag()
+            val originTag = nmsItem.get(DataComponents.CUSTOM_DATA)
+            // java.lang.NoSuchMethodError: 'net.minecraft.nbt.NBTTagCompound net.minecraft.world.item.component.CustomData.copyTag()'
+            val tag = if (originTag == null) null else dynamic(DynamicOpcode.INVOKEVIRTUAL, "net.minecraft.nbt.CompoundTag#copyTag()net.minecraft.nbt.CompoundTag;", originTag)
             if (tag != null) itemTagToBukkitCopy(tag, true).asCompound() else ItemTag()
         } else {
             val tag = nmsItem.toNbt()
@@ -96,7 +99,10 @@ class NMSItemTagImpl2 : NMSItemTag() {
                     "net.minecraft.core.Holder\$Reference#value()java.lang.Object;",
                     holder
                 ) as Block
-                builder.of(BuiltInRegistries.BLOCK, block)
+                // 懒得管
+                @Suppress("unchecked_cast")
+                val blockRegistry = dynamic(DynamicOpcode.GETSTATIC, "net.minecraft.core.registries.BuiltInRegistries#BLOCK:net.minecraft.core.DefaultedRegistry;") as HolderGetter<Block>
+                builder.of(blockRegistry, block)
                 builder.build()
             }
         }
