@@ -131,7 +131,9 @@ object IncisionBootstrap {
         }.getOrNull() ?: "?"
         Forensics.debug("asm-tree probe: loader=${cl.javaClass.name} core=$asmCoreLoc tree=$asmTreeLoc")
         try {
-            val bytes = cl.getResourceAsStream("taboolib/module/incision/IncisionBootstrap.class")?.use { it.readBytes() }
+            // 资源路径从实际类对象推导，避免 const/字面量被 relocation 改写成点斜混合的非法路径
+            val resourcePath = IncisionBootstrap::class.java.name.replace('.', '/') + ".class"
+            val bytes = cl.getResourceAsStream(resourcePath)?.use { it.readBytes() }
             if (bytes != null) {
                 val node = org.objectweb.asm.tree.ClassNode()
                 org.objectweb.asm.ClassReader(bytes).accept(node, 0)

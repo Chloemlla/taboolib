@@ -17,6 +17,10 @@ dependencies {
     // 测试
     testImplementation(project(":common"))
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    // BodiesClassGenerator 在运行期直接使用 ASM，测试需要 ASM 运行时
+    testImplementation("org.ow2.asm:asm:9.8")
+    testImplementation("org.ow2.asm:asm-commons:9.8")
+    testImplementation("org.ow2.asm:asm-util:9.8")
 }
 
 tasks.test {
