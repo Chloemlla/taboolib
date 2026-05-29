@@ -14,4 +14,11 @@ dependencies {
     compileOnly("org.ow2.asm:asm-util:9.8")
     // self-attach 默认路径
     compileOnly("net.bytebuddy:byte-buddy-agent:1.14.18")
+    // 测试
+    testImplementation(project(":common"))
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }

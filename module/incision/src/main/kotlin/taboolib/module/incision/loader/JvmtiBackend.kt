@@ -21,6 +21,9 @@ object JvmtiBackend : Backend {
 
     private val transformers = ConcurrentHashMap<String, MutableList<(ByteArray) -> ByteArray?>>()
 
+    /** 防重入保护：weave 过程中触发的类加载不应再次进入 transformer */
+    private val reentrantGuard = ThreadLocal.withInitial { false }
+
     @Volatile private var loaded = false
     @Volatile private var available = false
 
@@ -59,19 +62,26 @@ object JvmtiBackend : Backend {
     /** Called from native ClassFileLoadHook for every (re)loaded class. */
     @JvmStatic
     fun onClassFileLoad(loader: ClassLoader?, name: String, bytes: ByteArray): ByteArray? {
+        // 防重入：如果当前线程正在 weave 中（触发了新类加载），跳过 transformer 避免无限递归
+        if (reentrantGuard.get()) return null
         val list = transformers[name]
         if (list == null) return null
         Forensics.debug("JvmtiBackend.onClassFileLoad: $name (${list.size} transformers, ${bytes.size} bytes)")
-        var cur = bytes
-        var changed = false
-        for (t in list) {
-            val out = try { t(cur) } catch (e: Throwable) {
-                Forensics.error("JvmtiBackend transformer error: $name", e); null
+        reentrantGuard.set(true)
+        try {
+            var cur = bytes
+            var changed = false
+            for (t in list) {
+                val out = try { t(cur) } catch (e: Throwable) {
+                    Forensics.error("JvmtiBackend transformer error: $name", e); null
+                }
+                if (out != null) { cur = out; changed = true }
             }
-            if (out != null) { cur = out; changed = true }
+            Forensics.debug("JvmtiBackend.onClassFileLoad: $name → changed=$changed (${cur.size} bytes)")
+            return if (changed) cur else null
+        } finally {
+            reentrantGuard.set(false)
         }
-        Forensics.debug("JvmtiBackend.onClassFileLoad: $name → changed=$changed (${cur.size} bytes)")
-        return if (changed) cur else null
     }
 
     // ----------------------------------------------------------------
