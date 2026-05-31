@@ -114,6 +114,19 @@ object BodiesClassGenerator {
     private fun generateBodyMethod(original: MethodNode, ownerInternal: String, privateFields: Map<String, String>): MethodNode? {
         if (original.access and ACC_STATIC != 0) return null
 
+        // 跳过构造函数 / 静态初始化块：
+        // 1. JVM 方法名规范禁止普通方法名包含 '<' '>'，"<init>$body" / "<clinit>$body" 属非法方法名，
+        //    直接生成会触发 ClassFormatError: Illegal method name。
+        // 2. 构造函数体通常包含对 super()/this() 的 INVOKESPECIAL，无法在 static body 上下文中安全复制。
+        // 这类目标由 Incision 运行期回退到 IncisionBridge.dispatch 反射分发处理，无需 side-car body。
+        if (original.name == "<init>" || original.name == "<clinit>") {
+            Forensics.debug(
+                "BodiesClassGenerator: 跳过 ${ownerInternal}.${original.name}${original.desc} " +
+                    "(构造/静态初始化方法不生成 side-car body)"
+            )
+            return null
+        }
+
         val argTypes = Type.getArgumentTypes(original.desc)
         val returnType = Type.getReturnType(original.desc)
 
@@ -186,8 +199,20 @@ object BodiesClassGenerator {
         return false
     }
 
-    /** JvmtiBackend 在 JNI 注册后的内部类名（可能被 Shadow 重定位） */
-    private const val JVMTI_BACKEND = "taboolib/module/incision/loader/JvmtiBackend"
+    /**
+     * JvmtiBackend 的 JVM 内部类名（全斜杠形式）。
+     *
+     * 注意：绝不能写成 `const val "taboolib/module/incision/loader/JvmtiBackend"`。
+     * 因为 const 字符串会被内联，TabooLib 的 Shadow relocation 会把其中的 `taboolib`
+     * token 按「包名（点号）」规则替换为重定位前缀，得到点斜混合的非法名，例如
+     * `group.taboolib/module/incision/loader/JvmtiBackend`，导致生成的 Bodies 类在
+     * defineClass 时抛 ClassFormatError: Illegal class name。
+     *
+     * 改为运行期从已重定位的实际类对象推导：`Class.name` 在重定位后是正确的全限定名，
+     * 仅需把 `.` 换成 `/` 即可得到合法内部名，且对任意重定位前缀都成立。
+     */
+    private val JVMTI_BACKEND: String =
+        taboolib.module.incision.loader.JvmtiBackend::class.java.name.replace('.', '/')
 
     /**
      * 克隆原方法指令流到 [out]，做 slot 偏移、return 替换、private 字段访问替换。
