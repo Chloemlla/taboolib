@@ -97,7 +97,7 @@ open class RemapTranslation : Remapper() {
             } else {
                 // 如果是非 Mojang Mapping 环境，且这里是 Mojang.Fullname，则：尝试获取 Spigot.Fullname 并返回，如果获取不到，那么 key 就是 Spigot.Fullname 本身
                 if (!MinecraftVersion.isMojangMapping) {
-                    translateMojangToSpigotOrKeep(key)
+                    translateMojangToSpigotOrKeepRuntime(key)
                 } else {
                     // 如果为 Mojang Mapping 环境，这里不管是 Spigot.Fullname 还是 Mojang.Fullname 都不需要动
                     // 如果是 Spigot.Fullname，Paper PluginRemapper 会进行转译
@@ -107,29 +107,34 @@ open class RemapTranslation : Remapper() {
         } else {
             // 如果是 Mojang.Fullname 则尝试寻找对应的 Spigot.Fullname
             if (key.startsWith("net/minecraft")) {
-                val translated = translateMojangToSpigotOrKeep(key)
-                if (translated == key) {
-                    return key
-                }
+                // 旧版 NMS 只有 net.minecraft.server.vX_Y_RZ 包，映射缺失时仍要用短类名回落到当前运行版本。
+                val translated = findMojangToSpigotName(key) ?: key
                 "net/minecraft/server/${MinecraftVersion.minecraftVersion}/${translated.substringAfterLast('/')}"
             } else key
         }
     }
 
     /**
+     * 只从 Paper 映射中查找 Mojang 类名对应的 Spigot 类名。
+     */
+    fun findMojangToSpigotName(key: String): String? {
+        return MinecraftVersion.paperMapping.classMapMojangToSpigot[key.replace('/', '.')]?.replace('.', '/')
+    }
+
+    /**
      * 将 Mojang 类名转为 Spigot 类名，运行时已有类名优先保留。
      */
-    fun translateMojangToSpigotOrKeep(key: String): String {
+    fun translateMojangToSpigotOrKeepRuntime(key: String): String {
         val runtimeName = key.replace('/', '.')
-        val spigotName = MinecraftVersion.paperMapping.classMapMojangToSpigot[runtimeName] ?: return key
+        val spigotName = findMojangToSpigotName(key) ?: return key
         // 只有映射表确实准备改名时才检查运行时类，避免在普通路径上反复触发类查找。
-        if (spigotName.replace('.', '/') == key) {
+        if (spigotName == key) {
             return key
         }
         if (hasRuntimeClass(runtimeName)) {
             return key
         }
-        return spigotName.replace('.', '/')
+        return spigotName
     }
 
     /**

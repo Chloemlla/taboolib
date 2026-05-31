@@ -108,6 +108,16 @@ class AsmClassTranslation(val source: String) {
         val isUniversalCB = MinecraftVersion.isUniversalCraftBukkit
         val isMojangMapping = MinecraftVersion.isMojangMapping
         val isUnobfuscated = MinecraftVersion.isUnobfuscated
-        return "mcRunning:$mcRunningVersion-nms:$mcNmsVersion-universal:$isUniversal-universalCB:$isUniversalCB-mojangMapping:$isMojangMapping-unobfuscated:$isUnobfuscated"
+        // remap 转换策略变化时递增缓存 ID，避免复用旧策略生成的字节码。
+        val remapTranslationCacheId = REMAP_TRANSLATION_CACHE_ID
+        return "mcRunning:$mcRunningVersion-nms:$mcNmsVersion-universal:$isUniversal-universalCB:$isUniversalCB-mojangMapping:$isMojangMapping-unobfuscated:$isUnobfuscated-remapTranslation:$remapTranslationCacheId"
+    }
+
+    companion object {
+
+        /**
+         * NMS remap 转换策略缓存 ID。
+         */
+        const val REMAP_TRANSLATION_CACHE_ID = "20260531-legacy-nms-package-fallback"
     }
 }
