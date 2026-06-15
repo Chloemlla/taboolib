@@ -1,58 +1,71 @@
-name: Build
+name: TabooLib Build
+
 on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
+      - "**/*.java"
       - "**/*.kt"
       - "**/*.kts"
+      - "**/*.properties"
       - "**/*.yml"
-      - "gradle.properties"
       - "gradle/**"
       - "gradlew"
+      - "gradlew.bat"
       - ".github/workflows/build.yml"
   push:
     branches:
-      - main
-      - advanced
+      - "dev/**"
     paths:
+      - "**/*.java"
       - "**/*.kt"
       - "**/*.kts"
+      - "**/*.properties"
       - "**/*.yml"
-      - "gradle.properties"
       - "gradle/**"
       - "gradlew"
+      - "gradlew.bat"
+      - ".github/workflows/build.yml"
   workflow_dispatch:
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   build:
+    name: Build TabooLib
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Set up JDK 25
+
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
-          java-version: "25"
+          java-version: "17"
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
-      - name: Build
-        run: ./gradlew build --full-stacktrace
-      - name: Upload build artifact
+
+      - name: Build TabooLib
+        run: ./gradlew build --full-stacktrace --no-daemon
+
+      - name: Upload TabooLib artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: EcoEnchants-${{ github.sha }}
+          name: TabooLib-${{ github.sha }}
           path: |
-            build/libs/*.jar
+            **/build/libs/*.jar
           if-no-files-found: error
           retention-days: 14
-      - name: Prepare release metadata
+
+      - name: Prepare TabooLib release metadata
         id: release_metadata
-        if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/advanced' }}
+        if: ${{ success() && github.event_name == 'push' && startsWith(github.ref, 'refs/heads/dev/') }}
         shell: bash
         run: |
           VERSION_NAME="$(sed -n 's/^version=//p' gradle.properties | head -n 1)"
@@ -62,29 +75,28 @@ jobs:
           fi
 
           SHORT_HASH="${GITHUB_SHA::7}"
-          echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
-          echo "SHORT_HASH=$SHORT_HASH" >> "$GITHUB_ENV"
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           echo "short_hash=$SHORT_HASH" >> "$GITHUB_OUTPUT"
 
           if [ ! -f RELEASE_NOTES.md ]; then
             {
-              echo "EcoEnchants $VERSION_NAME-$SHORT_HASH"
+              echo "TabooLib $VERSION_NAME-$SHORT_HASH"
               echo
               echo "Commit: $GITHUB_SHA"
             } > RELEASE_NOTES.md
           fi
 
           mkdir -p build/release
-          find build/libs -maxdepth 1 -type f -name "*.jar" -exec cp {} build/release/ \;
+          find . -path "*/build/libs/*.jar" -type f -exec cp {} build/release/ \;
 
           if ! ls build/release/*.jar >/dev/null 2>&1; then
-            echo "No obfuscated release JARs found in build/libs" >&2
+            echo "No TabooLib JARs found in module build outputs" >&2
             exit 1
           fi
-      - name: Automatic release
-        if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/advanced' }}
-        uses: softprops/action-gh-release@master
+
+      - name: Release TabooLib
+        if: ${{ success() && github.event_name == 'push' && startsWith(github.ref, 'refs/heads/dev/') }}
+        uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
@@ -92,6 +104,6 @@ jobs:
           body_path: RELEASE_NOTES.md
           tag_name: "v${{ steps.release_metadata.outputs.version_name }}-${{ steps.release_metadata.outputs.short_hash }}"
           prerelease: false
-          name: "EcoEnchants ${{ steps.release_metadata.outputs.version_name }}-${{ steps.release_metadata.outputs.short_hash }}"
+          name: "TabooLib ${{ steps.release_metadata.outputs.version_name }}-${{ steps.release_metadata.outputs.short_hash }}"
           files: |
             build/release/*.jar
