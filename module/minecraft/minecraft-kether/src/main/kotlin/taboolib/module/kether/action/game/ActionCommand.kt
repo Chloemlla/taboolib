@@ -38,7 +38,7 @@ class ActionCommand(val command: ParsedAction<*>, val type: Type) : ScriptAction
                 }
                 // 控制台
                 Type.CONSOLE -> {
-                    console().performCommand(command.replace("@sender", "console").replace("@p",viewer.name))
+                    console().performCommand(command.replace("@sender", "console").replace("@p", viewer.name))
                 }
             }
         }, frame.context().executor)
