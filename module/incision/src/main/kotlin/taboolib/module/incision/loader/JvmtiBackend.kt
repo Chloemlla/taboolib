@@ -68,6 +68,8 @@ object JvmtiBackend : Backend {
         if (list == null) return null
         Forensics.debug("JvmtiBackend.onClassFileLoad: $name (${list.size} transformers, ${bytes.size} bytes)")
         reentrantGuard.set(true)
+        val prevLoader = taboolib.module.incision.weaver.Scalpel.currentTransformLoader.get()
+        taboolib.module.incision.weaver.Scalpel.currentTransformLoader.set(loader)
         try {
             var cur = bytes
             var changed = false
@@ -80,6 +82,7 @@ object JvmtiBackend : Backend {
             Forensics.debug("JvmtiBackend.onClassFileLoad: $name → changed=$changed (${cur.size} bytes)")
             return if (changed) cur else null
         } finally {
+            taboolib.module.incision.weaver.Scalpel.currentTransformLoader.set(prevLoader)
             reentrantGuard.set(false)
         }
     }
