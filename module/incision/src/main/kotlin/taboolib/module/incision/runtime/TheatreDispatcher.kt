@@ -128,8 +128,21 @@ object TheatreDispatcher {
         }
     }
 
-    fun unregister(target: MethodCoordinate, id: String): Boolean =
-        chains[target.signature]?.remove(id) ?: false
+    fun unregister(target: MethodCoordinate, id: String): Boolean {
+        var removed = chains[target.signature]?.remove(id) ?: false
+        val ownerName = "${target.owner}.${target.name}"
+        wildcardEntries[ownerName]?.let { entries ->
+            removed = entries.removeIf { it.id == id } || removed
+            if (entries.isEmpty()) wildcardEntries.remove(ownerName, entries)
+        }
+        if (target.descriptor.contains('*')) {
+            // 通配 advice 注册时会被复制进已存在的具体 chain；卸载必须按 id 全量清除这些投影。
+            chains.values.forEach { chain -> removed = chain.remove(id) || removed }
+        }
+        predicateWarnedIds.remove(id)
+        bodyInvokerCache.keys.removeIf { it.baseSig == target.signature }
+        return removed
+    }
 
     /**
      * 织入字节码的回调入口。返回值用作目标方法的返回值（若被覆盖）。
@@ -154,7 +167,10 @@ object TheatreDispatcher {
         val adviceId = parsedSig.adviceId
         val phase = parsedSig.phase
         val chain = chains[baseSig]
-        if (chain == null) return originalInvoker?.invoke(args)
+        if (chain == null) {
+            if (adviceId != null) Forensics.warn("Site dispatch 未找到宿主 chain: target=$baseSig advice=$adviceId")
+            return originalInvoker?.invoke(args)
+        }
         val isThrowPhase = phase == "TRAIL_THROW"
         val entries = chain.list().filter { e ->
             if (!e.enabled) return@filter false
@@ -163,7 +179,10 @@ object TheatreDispatcher {
             if (isThrowPhase) return@filter e.kind == AdviceKind.TRAIL && e.onThrow
             matchesPhase(e, phase)
         }
-        if (entries.isEmpty()) return originalInvoker?.invoke(args)
+        if (entries.isEmpty()) {
+            if (adviceId != null) Forensics.warn("Site dispatch 未找到 advice: target=$baseSig advice=$adviceId")
+            return originalInvoker?.invoke(args)
+        }
 
         // SPLICE 相位下若 weaver 未注入 invoker，尝试从 bodies side-car 解析
         val effectiveInvoker: ((Array<Any?>) -> Any?)? = originalInvoker ?: run {
@@ -219,7 +238,12 @@ object TheatreDispatcher {
         else -> true
     }
 
-    fun clear() { chains.clear(); wildcardEntries.clear() }
+    fun clear() {
+        chains.clear()
+        wildcardEntries.clear()
+        predicateWarnedIds.clear()
+        bodyInvokerCache.clear()
+    }
 
     /** 内部 Theatre + Resume 实现 — 链式驱动 */
     private class TheatreImpl(
@@ -256,7 +280,7 @@ object TheatreDispatcher {
 
         /**
          * 执行 advice 上挂载的字符串编译谓词。失败：
-         * - 默认：warnOnce + 视为 true（不阻断）。这样运行期谓词异常不会让 advice 静默失活。
+         * - 默认：warnOnce + 视为 false。选择器错误不能扩大 advice 作用域。
          * - `-Dincision.predicate.strict=true`：抛 [Trauma.Predicate.RuntimeFailure]。
          */
         private fun evalCompiledPredicate(cur: AdviceEntry): Boolean {
@@ -276,7 +300,7 @@ object TheatreDispatcher {
                                 "  source: ${cur.predicateSource ?: "<unknown>"}"
                     )
                 }
-                true
+                false
             }
         }
 

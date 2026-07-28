@@ -138,8 +138,9 @@ object BodiesClassGenerator {
             original.exceptions?.toTypedArray()
         )
 
-        // 预检：不支持 INVOKESPECIAL 调用 owner 自身 private/实例方法（除 <init>）
-        if (hasUnsupportedInvokeSpecial(original, ownerInternal)) {
+        // 预检：side-car 不是目标类的子类，任何非构造 INVOKESPECIAL（private/super/default）
+        // 都可能违反 verifier 的“current class assignable”约束，必须拒绝生成而不是留到调用时报 VerifyError。
+        if (hasUnsupportedInvokeSpecial(original)) {
             Forensics.debug(
                 "BodiesClassGenerator: 跳过 ${ownerInternal}.${original.name}${original.desc} " +
                     "(包含 INVOKESPECIAL 到自身方法，static 上下文不合法)"
@@ -188,13 +189,9 @@ object BodiesClassGenerator {
         return body
     }
 
-    private fun hasUnsupportedInvokeSpecial(original: MethodNode, ownerInternal: String): Boolean {
+    private fun hasUnsupportedInvokeSpecial(original: MethodNode): Boolean {
         for (insn in original.instructions) {
-            if (insn is MethodInsnNode && insn.opcode == INVOKESPECIAL) {
-                if (insn.owner == ownerInternal && insn.name != "<init>") {
-                    return true
-                }
-            }
+            if (insn is MethodInsnNode && insn.opcode == INVOKESPECIAL && insn.name != "<init>") return true
         }
         return false
     }

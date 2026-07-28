@@ -5,7 +5,6 @@ import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes
 import org.objectweb.asm.commons.AdviceAdapter
-import org.objectweb.asm.commons.ClassRemapper
 import taboolib.module.incision.api.MethodCoordinate
 import taboolib.module.incision.cache.IncisionCache
 import taboolib.module.incision.diagnostic.Forensics
@@ -48,23 +47,25 @@ class Scalpel(
                 JvmtiBackend.cacheOriginal(probeOwner, originalBytes)
                 originalBytes
             }
-            val reader = ClassReader(sourceBytes)
-            val owner = reader.className
+            val sourceReader = ClassReader(sourceBytes)
+            val owner = sourceReader.className
             val targets = targetsByOwner[owner] ?: return originalBytes
             val loader = currentTransformLoader.get()
+            // Site 必须先落到逻辑原方法体，再由 SPLICE/EXCISE 提取 body。若先生成入口 dispatcher，
+            // proceed() 会调用尚未包含 Site 的旧 body，使 INVOKE/FIELD/NEW advice 永远不可达。
+            val bodySourceBytes = if (targets.any { it.sites.isNotEmpty() }) {
+                applySiteWeaver(sourceBytes, targets, loader)
+            } else {
+                sourceBytes
+            }
+            val reader = ClassReader(bodySourceBytes)
             val writer = SafeClassWriter(reader, loader)
             val visitor = WeavingClassVisitor(Opcodes.ASM9, writer, targets)
-            val pipeline = if (resolver.isRemappableTarget(owner)) {
-                ClassRemapper(visitor, RemapperBridge(resolver))
-            } else visitor
-            reader.accept(pipeline, ClassReader.EXPAND_FRAMES)
-            var bytes = writer.toByteArray()
-            // 二次 pass — 走 SiteWeaver 处理 GRAFT / BYPASS / TRIM 站点
-            val anySites = targets.any { it.sites.isNotEmpty() }
-            if (anySites) {
-                bytes = applySiteWeaver(bytes, targets, loader)
-            }
-            generateAndRegisterBodies(owner, sourceBytes, targets)
+            // 只映射声明坐标，绝不能再次映射服务端已经转换过的整份字节码；后者会破坏
+            // Paper/CraftBukkit 自带的 relocated 依赖名称，并在 retransform 后污染运行中的类。
+            reader.accept(visitor, ClassReader.EXPAND_FRAMES)
+            val bytes = writer.toByteArray()
+            generateAndRegisterBodies(owner, bodySourceBytes, targets)
             devDumpIfEnabled(owner, sourceBytes, bytes)
             bytes
         } catch (t: Throwable) {
@@ -243,16 +244,9 @@ class Scalpel(
         val targetLoader = currentTransformLoader.get()
         if (targetLoader != null && isClassDefined(bodiesName, targetLoader)) return
         if (targetLoader == null && BridgeClassLoader.INSTANCE.hasBodies(bodiesName)) return
-        val sourceBytes = try {
-            JvmtiBackend.getCachedOriginal(owner)
-        } catch (_: Throwable) { null } ?: run {
-            try {
-                JvmtiBackend.cacheOriginal(owner, originalBytes)
-            } catch (t: Throwable) {
-                Forensics.error("JvmtiBackend.cacheOriginal failed: $owner — ${t.message}", t)
-            }
-            originalBytes
-        }
+        // 调用方已经从 JVM 基线重建完整 active plan；这里必须保留其 Site 结果，不能再从
+        // original cache 取回未织入版本，否则 Splice.proceed() 会跳过同一方法上的 Site。
+        val sourceBytes = originalBytes
         val bodiesBytes = try {
             BodiesClassGenerator.generate(sourceBytes, owner, spliceMethods)
         } catch (t: Throwable) {
@@ -260,6 +254,9 @@ class Scalpel(
             null
         }
         if (bodiesBytes == null) return
+        // 开发 dump 同时保留 side-car 产物；跨 ClassLoader 的 proceed/Site 问题否则无法从
+        // 主类 after.class 判断实际执行的方法体。
+        devDumpIfEnabled(bodiesName, sourceBytes, bodiesBytes)
         try {
             if (targetLoader != null && defineBodiesInTargetLoader(bodiesName, bodiesBytes, targetLoader)) {
                 Forensics.debug("Bodies class defined in target loader: $bodiesName loader=${targetLoader.javaClass.name}")
@@ -419,6 +416,7 @@ class Scalpel(
         private fun emitThrowTrailCall() {
             val thrLocal = newLocal(org.objectweb.asm.Type.getType("Ljava/lang/Throwable;"))
             visitVarInsn(Opcodes.ASTORE, thrLocal)
+            visitLdcInsn(org.objectweb.asm.Type.getObjectType(ownerName))
             visitLdcInsn("$targetSig@TRAIL_THROW")
             if ((methodAccess and Opcodes.ACC_STATIC) != 0) {
                 visitInsn(Opcodes.ACONST_NULL)
@@ -435,7 +433,7 @@ class Scalpel(
                 Opcodes.INVOKESTATIC,
                 "io/izzel/incision/bridge/IncisionBridge",
                 "dispatch",
-                "(Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;",
+                "(Ljava/lang/Class;Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;",
                 false,
             )
             visitInsn(Opcodes.POP)
@@ -497,6 +495,8 @@ class Scalpel(
         }
 
         private fun emitDispatcherCall(phaseSuffix: String = "") {
+            // 宿主 Class 常量由 JVM 以 defining ClassLoader 解析，是 Bridge 跨插件路由的稳定 token。
+            visitLdcInsn(org.objectweb.asm.Type.getObjectType(ownerName))
             visitLdcInsn("$targetSig$phaseSuffix")
             if ((methodAccess and Opcodes.ACC_STATIC) != 0) {
                 visitInsn(Opcodes.ACONST_NULL)
@@ -511,7 +511,7 @@ class Scalpel(
                 Opcodes.INVOKESTATIC,
                 "io/izzel/incision/bridge/IncisionBridge",
                 "dispatch",
-                "(Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;",
+                "(Ljava/lang/Class;Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;",
                 false,
             )
         }

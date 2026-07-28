@@ -33,6 +33,20 @@ object GateBootstrapper {
 
     fun current(): IncisionGateApi? = bound
 
+    /**
+     * 释放当前插件对 Gate 的 lease；必须先清 advice 再断开 delegate，避免 system holder 持有旧插件 ClassLoader。
+     */
+    @Synchronized
+    fun release(classLoader: ClassLoader) {
+        val gate = bound ?: return
+        runCatching { gate.healByClassLoader(classLoader) }
+        bound = null
+        val holder = runCatching {
+            Class.forName("taboolib.incision.gate.IncisionGate\$V${gate.apiVersion()}", false, ClassLoader.getSystemClassLoader())
+        }.getOrNull()
+        runCatching { holder?.getMethod("setDelegate", Object::class.java)?.invoke(null, null) }
+    }
+
     fun bootstrap(apiVersion: Int): IncisionGateApi {
         bound?.let { return it }
         synchronized(this) {
