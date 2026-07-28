@@ -36,17 +36,21 @@ object TheatreDispatcher {
         if (predicateWarnedIds.putIfAbsent(id, true) == null) block()
     }
 
-    // bodies 方法缓存：baseSig → Method（未命中时缓存为 null 的 Optional 包装）
-    private val bodyInvokerCache = ConcurrentHashMap<String, java.util.Optional<java.lang.reflect.Method>>()
+    // bodies 方法缓存：ClassLoader + baseSig → Method（未命中时缓存为 null 的 Optional 包装）。
+    // 同名目标类在不同插件 ClassLoader 下可能各自有 bodies 类，不能只按 baseSig 缓存。
+    private val bodyInvokerCache = ConcurrentHashMap<BodyInvokerKey, java.util.Optional<java.lang.reflect.Method>>()
+
+    private data class BodyInvokerKey(val loader: ClassLoader?, val baseSig: String)
 
     /**
-     * 从 BridgeClassLoader 中查找 bodies 类的对应方法。
+     * 从目标 ClassLoader 或 BridgeClassLoader 中查找 bodies 类的对应方法。
      *
      * @param baseSig 格式如 "com/example/Foo.greet(Ljava/lang/String;I)I"
      * @return bodies 类中的 static Method，或 null
      */
-    fun resolveBodyInvoker(baseSig: String): java.lang.reflect.Method? {
-        val cached = bodyInvokerCache[baseSig]
+    fun resolveBodyInvoker(baseSig: String, targetLoader: ClassLoader?): java.lang.reflect.Method? {
+        val key = BodyInvokerKey(targetLoader, baseSig)
+        val cached = bodyInvokerCache[key]
         if (cached != null) return cached.orElse(null)
         val resolved: java.lang.reflect.Method? = try {
             val parsed = parseOwnerAndMethod(baseSig)
@@ -54,20 +58,31 @@ object TheatreDispatcher {
                 null
             } else {
                 val bodiesClassName = BridgeClassLoader.bodiesClassName(parsed.ownerInternal)
-                if (!BridgeClassLoader.INSTANCE.hasBodies(bodiesClassName)) {
-                    null
-                } else {
-                    val bodiesClass = BridgeClassLoader.INSTANCE.loadClass(bodiesClassName)
+                val bodiesClass = loadBodiesClass(bodiesClassName, targetLoader)
+                if (bodiesClass != null) {
                     val bodyMethodName = parsed.methodName + BodiesClassGenerator.BODY_METHOD_SUFFIX
                     bodiesClass.getMethod(bodyMethodName, Any::class.java, Array<Any>::class.java)
-                }
+                } else null
             }
         } catch (t: Throwable) {
-            Forensics.debug("resolveBodyInvoker 未命中: $baseSig — ${t.message}")
+            Forensics.debug("resolveBodyInvoker 未命中: $baseSig loader=${targetLoader?.javaClass?.name} — ${t.message}")
             null
         }
-        bodyInvokerCache[baseSig] = java.util.Optional.ofNullable(resolved)
+        bodyInvokerCache[key] = java.util.Optional.ofNullable(resolved)
         return resolved
+    }
+
+    private fun loadBodiesClass(bodiesClassName: String, targetLoader: ClassLoader?): Class<*>? {
+        if (targetLoader != null) {
+            try {
+                return Class.forName(bodiesClassName, false, targetLoader)
+            } catch (_: ClassNotFoundException) {
+            } catch (t: Throwable) {
+                Forensics.debug("target loader bodies 加载失败: $bodiesClassName — ${t.message}")
+            }
+        }
+        if (!BridgeClassLoader.INSTANCE.hasBodies(bodiesClassName)) return null
+        return BridgeClassLoader.INSTANCE.loadClass(bodiesClassName)
     }
 
     private data class ParsedSig(val ownerInternal: String, val methodName: String, val desc: String)
@@ -155,7 +170,7 @@ object TheatreDispatcher {
             if (phase == "SPLICE") {
                 // 确保 BridgeClassLoader 能解析目标类：用 self 的 CL 注册为 delegate
                 self?.javaClass?.classLoader?.let { BridgeClassLoader.INSTANCE.registerDelegate(it) }
-                val bodyMethod = resolveBodyInvoker(baseSig)
+                val bodyMethod = resolveBodyInvoker(baseSig, self?.javaClass?.classLoader)
                 if (bodyMethod != null) {
                     { callArgs -> bodyMethod.invoke(null, self, callArgs) }
                 } else null

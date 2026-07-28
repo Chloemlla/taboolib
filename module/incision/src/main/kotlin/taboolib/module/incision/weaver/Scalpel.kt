@@ -240,7 +240,9 @@ class Scalpel(
             .toSet()
         if (spliceMethods.isEmpty()) return
         val bodiesName = BridgeClassLoader.bodiesClassName(owner)
-        if (BridgeClassLoader.INSTANCE.hasBodies(bodiesName)) return
+        val targetLoader = currentTransformLoader.get()
+        if (targetLoader != null && isClassDefined(bodiesName, targetLoader)) return
+        if (targetLoader == null && BridgeClassLoader.INSTANCE.hasBodies(bodiesName)) return
         val sourceBytes = try {
             JvmtiBackend.getCachedOriginal(owner)
         } catch (_: Throwable) { null } ?: run {
@@ -259,9 +261,17 @@ class Scalpel(
         }
         if (bodiesBytes == null) return
         try {
+            if (targetLoader != null && defineBodiesInTargetLoader(bodiesName, bodiesBytes, targetLoader)) {
+                Forensics.debug("Bodies class defined in target loader: $bodiesName loader=${targetLoader.javaClass.name}")
+                return
+            }
+            if (BridgeClassLoader.INSTANCE.hasBodies(bodiesName)) return
             BridgeClassLoader.INSTANCE.defineBodies(bodiesName, bodiesBytes)
             // 注册能解析目标类的 ClassLoader 为 delegate
             // contextClassLoader 不一定是插件 CL，所以多注册几个来源
+            targetLoader?.let {
+                BridgeClassLoader.INSTANCE.registerDelegate(it)
+            }
             Thread.currentThread().contextClassLoader?.let {
                 BridgeClassLoader.INSTANCE.registerDelegate(it)
             }
@@ -271,6 +281,25 @@ class Scalpel(
             Forensics.debug("Bodies class defined: $bodiesName")
         } catch (t: Throwable) {
             Forensics.error("Bodies class define failed: $bodiesName — ${t.message}", t)
+        }
+    }
+
+    private fun defineBodiesInTargetLoader(binaryName: String, bytes: ByteArray, targetLoader: ClassLoader): Boolean {
+        if (isClassDefined(binaryName, targetLoader)) return true
+        val defined = JvmtiBackend.defineClassInClassLoader(targetLoader, binaryName, bytes) ?: return false
+        return defined.name == binaryName
+    }
+
+    private fun isClassDefined(binaryName: String, loader: ClassLoader): Boolean {
+        return try {
+            Class.forName(binaryName, false, loader)
+            true
+        } catch (_: ClassNotFoundException) {
+            false
+        } catch (_: LinkageError) {
+            true
+        } catch (_: Throwable) {
+            false
         }
     }
 
