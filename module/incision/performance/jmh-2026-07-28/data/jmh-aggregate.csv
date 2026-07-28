@@ -1,0 +1,11 @@
+﻿backend,benchmark,mean_overhead_ns_op,median_overhead_ns_op,geomean_overhead_multiplier
+jvmti,lead,79.515209,77.997610,196.984099
+jvmti,leadTrail,207.474392,205.869949,510.878905
+jvmti,predicateTrue,102.862987,100.945450,249.870360
+jvmti,spliceProceed,118.615160,118.453104,293.451892
+jvmti,siteInvoke,164.899656,156.276573,404.473754
+instrumentation,lead,79.427279,79.578820,198.371165
+instrumentation,leadTrail,208.495801,205.186910,520.295944
+instrumentation,predicateTrue,105.047866,99.522657,259.400630
+instrumentation,spliceProceed,125.703358,124.542938,313.485043
+instrumentation,siteInvoke,174.236643,167.555001,430.520355
