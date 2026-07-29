@@ -17,11 +17,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * 解析顺序：
  * <ol>
- *   <li>优先查系统 ClassLoader 上的 <code>io.izzel.incision.bridge.IncisionGateHost</code>
- *       （由 GateBootstrapper 通过 appendToSystemClassLoaderSearch 推入），
- *       拿到之后所有插件共享同一宿主；</li>
- *   <li>若系统 ClassLoader 上没有宿主，退化为当前调用方 ClassLoader 的本地 TheatreDispatcher
- *       （单插件场景正常工作）。</li>
+ *   <li>按被织入类的 defining ClassLoader 精确查找本地 TheatreDispatcher；</li>
+ *   <li>目标是服务端类且当前只有一个本地 lease 时，允许唯一回退；</li>
+ *   <li>本地没有可用路由时再交给系统 ClassLoader 上的 Gate。</li>
  * </ol>
  *
  * 本类通过反射跨 ClassLoader 调用 dispatch，避免类型一致性问题。
@@ -41,15 +39,12 @@ public final class IncisionBridge {
     /** ClassLoader → 本地 TheatreDispatcher.dispatch Method 缓存（单插件 fallback 路径） */
     private static final ConcurrentHashMap<ClassLoader, Method> localCache = new ConcurrentHashMap<ClassLoader, Method>();
 
-    /** 全局回退 — 任何 ClassLoader 都能命中的本地 dispatcher */
-    private static volatile Method fallbackLocalDispatch = null;
-
     /**
      * 供 weaver 注入的 INVOKESTATIC 目标。
      *
      * <pre>
      * INVOKESTATIC io/izzel/incision/bridge/IncisionBridge.dispatch
-     *   (Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;
+     *   (Ljava/lang/Class;Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;
      * </pre>
      *
      * @param targetSignature 目标方法签名（编译期常量串）
@@ -57,41 +52,37 @@ public final class IncisionBridge {
      * @param args            原方法实参
      * @return advice 链的最终返回值；若为 null 调用方应继续执行原方法
      */
-    public static Object dispatch(String targetSignature, Object self, Object[] args) {
-        // 优先走系统宿主
+    public static Object dispatch(Class<?> ownerClass, String targetSignature, Object self, Object[] args) {
+        ClassLoader definingLoader = ownerClass == null ? null : ownerClass.getClassLoader();
+        Method local = resolveLocalDispatch(definingLoader);
+        if (local != null) {
+            try {
+                if (local.getParameterCount() == 4) {
+                    return local.invoke(null, targetSignature, self, args, null);
+                }
+                return local.invoke(null, targetSignature, self, args);
+            } catch (Throwable t) {
+                System.err.println("[Incision][Bridge] local dispatch failed: " + t);
+            }
+        }
         Method m = systemDispatch;
         Object host = systemHost;
         if (m != null && host != null) {
             try {
                 return m.invoke(host, targetSignature, self, args);
             } catch (Throwable t) {
-                // 宿主异常不应阻断原方法
                 System.err.println("[Incision][Bridge] system host dispatch failed: " + t);
             }
         }
-
-        // 本地 fallback — 从调用方 ClassLoader 查 TheatreDispatcher
-        ClassLoader cl = Thread.currentThread().getContextClassLoader();
-        if (cl == null) cl = IncisionBridge.class.getClassLoader();
-        Method local = resolveLocalDispatch(cl);
-        if (local != null) {
-            try {
-                if (local.getParameterCount() == 4) {
-                    return local.invoke(null, targetSignature, self, args, null);
-                } else {
-                    return local.invoke(null, targetSignature, self, args);
-                }
-            } catch (Throwable t) {
-                System.err.println("[Incision][Bridge] local dispatch failed: " + t);
-            }
-        }
+        // 精确 loader 路由失败属于生命周期错误，不能静默伪装成 advice 未命中。
+        System.err.println("[Incision][Bridge] dispatch unavailable: owner=" +
+            (ownerClass == null ? "null" : ownerClass.getName()) + " loader=" + definingLoader +
+            " localLeases=" + localCache.size() + " target=" + targetSignature);
         return null;
     }
 
-    public static Object dispatchBypass(String targetSignature, Object self, Object[] args) {
-        ClassLoader cl = Thread.currentThread().getContextClassLoader();
-        if (cl == null) cl = IncisionBridge.class.getClassLoader();
-        Method local = resolveLocalSibling(cl, "dispatchBypass");
+    public static Object dispatchBypass(Class<?> ownerClass, String targetSignature, Object self, Object[] args) {
+        Method local = resolveLocalSibling(ownerClass == null ? null : ownerClass.getClassLoader(), "dispatchBypass");
         if (local != null) {
             try {
                 return local.invoke(null, targetSignature, self, args);
@@ -149,11 +140,13 @@ public final class IncisionBridge {
         }
     }
 
-    private static Method resolveLocalDispatch(ClassLoader cl) {
-        Method cached = localCache.get(cl);
+    private static Method resolveLocalDispatch(ClassLoader definingLoader) {
+        Method cached = localCache.get(definingLoader);
         if (cached != null) return cached;
-        // 全局回退 — ClassLoader 不匹配时使用 registerLocalDispatcher 注册的方法
-        return fallbackLocalDispatch;
+        // 服务端类通常由 bootstrap/system loader 定义。只有一个插件持有 lease 时路由没有歧义；
+        // 多插件场景必须交给 Gate，禁止退化为“最后注册 dispatcher”。
+        if (localCache.size() == 1) return localCache.values().iterator().next();
+        return null;
     }
 
     /** 由 IncisionBootstrap 在 CONST 阶段调用，显式注册经过重定向后的 dispatcher 类 */
@@ -162,7 +155,6 @@ public final class IncisionBridge {
         Method best = pickDispatchMethod(dispatcherClass);
         if (best != null) {
             localCache.put(dispatcherClass.getClassLoader(), best);
-            fallbackLocalDispatch = best;
         }
     }
 
@@ -197,6 +189,7 @@ public final class IncisionBridge {
 
     /** 插件 DISABLE 时调用 — 移除该 ClassLoader 关联的本地 dispatcher 缓存 */
     public static void unregisterLocalDispatcher(ClassLoader cl) {
-        if (cl != null) localCache.remove(cl);
+        if (cl == null) return;
+        localCache.remove(cl);
     }
 }

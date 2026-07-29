@@ -9,7 +9,9 @@ import taboolib.common.platform.Awake
 import taboolib.module.incision.diagnostic.Checkup
 import taboolib.module.incision.diagnostic.ConflictAnalyzer
 import taboolib.module.incision.diagnostic.Forensics
+import taboolib.module.incision.dsl.Scalpel
 import taboolib.module.incision.gate.IncisionGateLocator
+import taboolib.module.incision.gate.GateBootstrapper
 import taboolib.module.incision.lifecycle.AutoHealHandler
 import taboolib.module.incision.loader.InstrumentationBackend
 import taboolib.module.incision.loader.JvmtiBackend
@@ -35,7 +37,7 @@ import taboolib.module.incision.runtime.TheatreDispatcher
 object IncisionBootstrap {
 
     /** 当前 incision API 版本，用于网关版本协商 */
-    const val API_VERSION = 1
+    const val API_VERSION = 2
 
     init {
         prepareConst()
@@ -68,6 +70,7 @@ object IncisionBootstrap {
         // 1. 接入 / 创建 IncisionGate
         try {
             val gate = IncisionGateLocator.locateOrCreate(API_VERSION)
+            IncisionBridge.bindSystemHost(gate)
             Forensics.info("Incision Gate online: api=${gate.apiVersion()}")
         } catch (t: Throwable) {
             Forensics.warn("Incision Gate 接入失败（将使用本地 dispatcher 兜底）：${t.javaClass.name}: ${t.message}")
@@ -85,7 +88,7 @@ object IncisionBootstrap {
         } else if (JvmtiBackend.available()) {
             Forensics.info("JVMTI native 后端就绪（Instrumentation 不可用）")
         } else {
-            Forensics.warn("Instrumentation / JVMTI 均不可用 — 仅 Pipeline / ClassLoaderHook 路径可用")
+            Forensics.warn("Instrumentation / JVMTI 均不可用 — 仅 NMSProxy 生成期 Pipeline 路径可用")
         }
     }
 
@@ -95,10 +98,18 @@ object IncisionBootstrap {
         // 卸载当前 ClassLoader 下所有 advice
         AutoHealHandler.healByClassLoader(IncisionBootstrap::class.java.classLoader)
         SurgeryRegistry.list().toList().forEach { it.heal() }
+        Scalpel.shutdown()
+        TheatreDispatcher.clear()
+        SurgeryRegistry.clear()
+        PipelineBackend.clear()
+        InstrumentationBackend.clearTransformers()
         // 解绑本插件在桥上的本地 dispatcher 缓存
         runCatching {
             IncisionBridge.unregisterLocalDispatcher(IncisionBootstrap::class.java.classLoader)
         }
+        IncisionBridge.unbindSystemHost()
+        GateBootstrapper.release(IncisionBootstrap::class.java.classLoader)
+        JvmtiBackend.dispose()
     }
 
     private fun probeAsmTree() {
