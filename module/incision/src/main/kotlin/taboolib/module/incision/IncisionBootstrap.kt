@@ -39,6 +39,10 @@ object IncisionBootstrap {
     /** 当前 incision API 版本，用于网关版本协商 */
     const val API_VERSION = 2
 
+    /** 系统属性名必须运行时拼接，避免插件 Shadow 把协议键误当作 taboolib 包名重定位。 */
+    private val backendProperty =
+        String(charArrayOf('t', 'a', 'b', 'o', 'o', 'l', 'i', 'b')) + ".incision.backend"
+
     init {
         prepareConst()
     }
@@ -167,8 +171,10 @@ object IncisionBootstrap {
             Forensics.warn("IncisionBridge.class 资源未找到: $resourcePath")
             return
         }
+        // 显式选择 Instrumentation 时不得探测 native；System.load 的进程级副作用无法在插件 CL 间回滚。
+        val forcedBackend = System.getProperty(backendProperty, "auto").lowercase()
         // 路径 1: JVMTI native — defineClass 直接注入 bootstrap CL
-        if (JvmtiBackend.available()) {
+        if (forcedBackend != "instrumentation" && JvmtiBackend.available()) {
             val cls = JvmtiBackend.defineClassInClassLoader(null, bridgeClassName, bytes)
             if (cls != null) {
                 Forensics.info("IncisionBridge 已注入 bootstrap ClassLoader (JVMTI)")

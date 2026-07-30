@@ -1,8 +1,13 @@
 package io.izzel.incision.bridge;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -54,6 +59,16 @@ public final class IncisionBridge {
     /** 多插件声明同一目标的诊断去重；真正的跨插件优先级聚合必须由 Gate 完成。 */
     private static final ConcurrentHashMap<String, Boolean> routeConflictWarnings =
         new ConcurrentHashMap<String, Boolean>();
+
+    /**
+     * Side-car body 的字段解析缓存。
+     *
+     * key 与 value 都必须是弱引用语义，避免系统级 Bridge 通过 Field 反向强持有插件 ClassLoader；
+     * 此处不能使用匿名 ClassValue 子类，因为 bootstrap 注入协议只复制 IncisionBridge.class，
+     * 任何 IncisionBridge$1.class 都会让 canonical 类初始化失败。
+     */
+    private static final Map<Class<?>, WeakReference<ConcurrentHashMap<String, Field>>> accessFields =
+        Collections.synchronizedMap(new WeakHashMap<Class<?>, WeakReference<ConcurrentHashMap<String, Field>>>());
 
     /**
      * 供 weaver 注入的 INVOKESTATIC 目标。
@@ -131,6 +146,64 @@ public final class IncisionBridge {
 
     public static boolean isBypassMiss(Object value) {
         return value == BYPASS_MISS;
+    }
+
+    /**
+     * Side-car body 读取宿主私有字段的稳定入口。
+     * 普通字段访问不应依赖某个插件 ClassLoader 独占的 JVMTI native image。
+     */
+    public static Object accessFieldGet(Object receiver, Class<?> ownerClass, String fieldName, String fieldDesc) {
+        try {
+            return resolveAccessField(ownerClass, fieldName, fieldDesc).get(receiver);
+        } catch (Throwable t) {
+            throw new IllegalStateException("Incision field read failed: " + ownerClass.getName() + "." + fieldName, t);
+        }
+    }
+
+    /** Side-car body 写入宿主私有字段；访问规则与 {@link #accessFieldGet} 相同。 */
+    public static void accessFieldSet(Object receiver, Class<?> ownerClass, String fieldName, String fieldDesc, Object value) {
+        try {
+            resolveAccessField(ownerClass, fieldName, fieldDesc).set(receiver, value);
+        } catch (Throwable t) {
+            throw new IllegalStateException("Incision field write failed: " + ownerClass.getName() + "." + fieldName, t);
+        }
+    }
+
+    /** Side-car body 读取宿主私有静态字段。 */
+    public static Object accessStaticFieldGet(Class<?> ownerClass, String fieldName, String fieldDesc) {
+        return accessFieldGet(null, ownerClass, fieldName, fieldDesc);
+    }
+
+    /** Side-car body 写入宿主私有静态字段。 */
+    public static void accessStaticFieldSet(Class<?> ownerClass, String fieldName, String fieldDesc, Object value) {
+        accessFieldSet(null, ownerClass, fieldName, fieldDesc, value);
+    }
+
+    private static Field resolveAccessField(Class<?> ownerClass, String fieldName, String fieldDesc) throws NoSuchFieldException {
+        String key = fieldName + ':' + fieldDesc;
+        ConcurrentHashMap<String, Field> fields;
+        synchronized (accessFields) {
+            WeakReference<ConcurrentHashMap<String, Field>> reference = accessFields.get(ownerClass);
+            fields = reference == null ? null : reference.get();
+            if (fields == null) {
+                fields = new ConcurrentHashMap<String, Field>();
+                accessFields.put(ownerClass, new WeakReference<ConcurrentHashMap<String, Field>>(fields));
+            }
+        }
+        Field cached = fields.get(key);
+        if (cached != null) return cached;
+        Class<?> cursor = ownerClass;
+        while (cursor != null) {
+            try {
+                Field field = cursor.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                Field previous = fields.putIfAbsent(key, field);
+                return previous == null ? field : previous;
+            } catch (NoSuchFieldException ignored) {
+                cursor = cursor.getSuperclass();
+            }
+        }
+        throw new NoSuchFieldException(ownerClass.getName() + '.' + fieldName + ':' + fieldDesc);
     }
 
     /** 宿主绑定入口 — GateBootstrapper 创建 host 后调用此方法完成注册 */

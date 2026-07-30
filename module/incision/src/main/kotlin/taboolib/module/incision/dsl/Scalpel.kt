@@ -192,7 +192,10 @@ object Scalpel {
             group.forEach { ownerEntries[it.id] = it }
             activeTokens.remove(resolvedOwner)?.remove()
             val targets = buildRuntimeTargets(resolvedOwner, ownerEntries.values.toList())
-            val weaver = ScalpelWeaver(targetsByOwner = mapOf(resolvedOwner to targets))
+            val weaver = ScalpelWeaver(
+                targetsByOwner = mapOf(resolvedOwner to targets),
+                useJvmtiBaseline = backend === JvmtiBackend,
+            )
             val installation = backend.install(resolvedOwner) { bytes -> weaver.weave(bytes) }
             val token = installation.token
             if (installation.status !in setOf(Backend.InstallStatus.INSTALLED, Backend.InstallStatus.PENDING_LOAD) || token == null) {
@@ -200,7 +203,10 @@ object Scalpel {
                 ownerEntries.putAll(previousEntries)
                 if (previousEntries.isNotEmpty()) {
                     val previousTargets = buildRuntimeTargets(resolvedOwner, previousEntries.values.toList())
-                    val previousWeaver = ScalpelWeaver(targetsByOwner = mapOf(resolvedOwner to previousTargets))
+                    val previousWeaver = ScalpelWeaver(
+                        targetsByOwner = mapOf(resolvedOwner to previousTargets),
+                        useJvmtiBaseline = backend === JvmtiBackend,
+                    )
                     val restored = backend.install(resolvedOwner) { bytes -> previousWeaver.weave(bytes) }
                     restored.token?.takeIf {
                         restored.status == Backend.InstallStatus.INSTALLED || restored.status == Backend.InstallStatus.PENDING_LOAD
@@ -252,7 +258,10 @@ object Scalpel {
             return backend.isClassLoaded(owner) == false || backend.retransform(owner.replace('/', '.'))
         }
         val targets = buildRuntimeTargets(owner, entries)
-        val weaver = ScalpelWeaver(targetsByOwner = mapOf(owner to targets))
+        val weaver = ScalpelWeaver(
+            targetsByOwner = mapOf(owner to targets),
+            useJvmtiBaseline = backend === JvmtiBackend,
+        )
         val installation = backend.install(owner) { bytes -> weaver.weave(bytes) }
         val token = installation.token ?: return false
         if (installation.status !in setOf(Backend.InstallStatus.INSTALLED, Backend.InstallStatus.PENDING_LOAD)) return false
