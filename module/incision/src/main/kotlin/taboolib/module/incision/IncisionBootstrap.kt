@@ -1,6 +1,5 @@
 package taboolib.module.incision
 
-import io.izzel.incision.bridge.IncisionBridge
 import taboolib.common.Inject
 import taboolib.common.LifeCycle
 import taboolib.common.env.RuntimeDependencies
@@ -19,6 +18,7 @@ import taboolib.module.incision.loader.PipelineBackend
 import taboolib.module.incision.reflex.IncisionReflex
 import taboolib.module.incision.remap.RemapRouter
 import taboolib.module.incision.remap.TabooLibNmsResolver
+import taboolib.module.incision.runtime.CanonicalBridge
 import taboolib.module.incision.runtime.SurgeryRegistry
 import taboolib.module.incision.runtime.TheatreDispatcher
 
@@ -50,13 +50,7 @@ object IncisionBootstrap {
         TabooLibNmsResolver.installIfAvailable()
         // 2. 安装反射穿透适配器，让 TabooLib reflex 在 invoke 时自动 withoutIncision
         IncisionReflex.installReflexAdapter()
-        // 3. 把经 gradle 重定位后真实的 TheatreDispatcher 类名注册进桥（插件 CL 版本）
-        try {
-            IncisionBridge.registerLocalDispatcher(TheatreDispatcher::class.java)
-        } catch (t: Throwable) {
-            Forensics.warn("Incision bridge registerLocalDispatcher failed: ${t.message}")
-        }
-        // 4. 注入 IncisionBridge 到 bootstrap ClassLoader，使跨 CL 目标（NMS、Bukkit API）能解析桥类
+        // 3. 注入 IncisionBridge 到 bootstrap ClassLoader，使跨 CL 目标（NMS、Bukkit API）能解析桥类
         //    必须在任何 installWeaver/retransform 之前完成
         injectBridgeIntoSystemClassLoader()
         Forensics.info("Incision CONST: api=$API_VERSION resolver=${RemapRouter.name()}")
@@ -70,7 +64,7 @@ object IncisionBootstrap {
         // 1. 接入 / 创建 IncisionGate
         try {
             val gate = IncisionGateLocator.locateOrCreate(API_VERSION)
-            IncisionBridge.bindSystemHost(gate)
+            CanonicalBridge.bindSystemHost(gate)
             Forensics.info("Incision Gate online: api=${gate.apiVersion()}")
         } catch (t: Throwable) {
             Forensics.warn("Incision Gate 接入失败（将使用本地 dispatcher 兜底）：${t.javaClass.name}: ${t.message}")
@@ -104,10 +98,7 @@ object IncisionBootstrap {
         PipelineBackend.clear()
         InstrumentationBackend.clearTransformers()
         // 解绑本插件在桥上的本地 dispatcher 缓存
-        runCatching {
-            IncisionBridge.unregisterLocalDispatcher(IncisionBootstrap::class.java.classLoader)
-        }
-        IncisionBridge.unbindSystemHost()
+        CanonicalBridge.unregisterDispatcher(IncisionBootstrap::class.java.classLoader)
         GateBootstrapper.release(IncisionBootstrap::class.java.classLoader)
         JvmtiBackend.dispose()
     }
@@ -165,8 +156,8 @@ object IncisionBootstrap {
         } catch (_: Throwable) {
             null
         }
-        if (existing != null && existing.classLoader == null) {
-            Forensics.info("IncisionBridge 已存在于 bootstrap ClassLoader")
+        if (existing != null && (existing.classLoader == null || existing.classLoader === sysCL)) {
+            Forensics.info("IncisionBridge 已存在于 ${existing.classLoader ?: "bootstrap"} ClassLoader")
             registerDispatcherOn(existing)
             return
         }
@@ -208,13 +199,17 @@ object IncisionBootstrap {
             }
         }
         // 路径 3: fallback — 仅在插件 CL 中，跨 CL 目标无法使用
+        runCatching {
+            Class.forName(bridgeClassName, true, IncisionBootstrap::class.java.classLoader)
+        }.getOrNull()?.let(::registerDispatcherOn)
         Forensics.warn("IncisionBridge 未能注入 bootstrap/system CL — 跨 ClassLoader 目标（NMS、Bukkit API）将不可用")
     }
 
     private fun registerDispatcherOn(bridgeClass: Class<*>) {
         try {
-            val regMethod = bridgeClass.getMethod("registerLocalDispatcher", Class::class.java)
-            regMethod.invoke(null, TheatreDispatcher::class.java)
+            // 后续 target 注册、host 绑定与卸载必须复用同一个类句柄，不能再直接链接插件内同名 Bridge。
+            CanonicalBridge.bind(bridgeClass)
+            CanonicalBridge.registerDispatcher(TheatreDispatcher::class.java)
             Forensics.info("IncisionBridge dispatcher 已注册 (CL=${bridgeClass.classLoader ?: "bootstrap"})")
         } catch (t: Throwable) {
             Forensics.warn("IncisionBridge registerLocalDispatcher 失败: ${t.message}")
