@@ -211,6 +211,7 @@ object Scalpel {
                 continue
             }
             activeTokens[resolvedOwner] = token
+            syncRuntimeAliases(resolvedOwner, ownerEntries.values.toList())
             Forensics.debug("installWeaver status=${installation.status} owner=$owner resolved=$resolvedOwner advices=${group.size} total=${ownerEntries.size} backend=${backend.name}")
         }
     }
@@ -256,14 +257,14 @@ object Scalpel {
         val token = installation.token ?: return false
         if (installation.status !in setOf(Backend.InstallStatus.INSTALLED, Backend.InstallStatus.PENDING_LOAD)) return false
         activeTokens[owner] = token
+        syncRuntimeAliases(owner, entries)
         return true
     }
 
     /** 把逻辑声明统一翻译为运行时坐标；宿主与 Site 必须经过同一条映射链。 */
     private fun buildRuntimeTargets(resolvedOwner: String, entries: List<AdviceEntry>): List<ScalpelWeaver.AdviceTargetSpec> {
         return entries.groupBy { it.target }.map { (target, targetEntries) ->
-            val (resolvedName, resolvedDescriptor) = RemapRouter.resolveMethod(target.owner, target.name, target.descriptor)
-            val runtimeTarget = target.copy(owner = resolvedOwner, name = resolvedName, descriptor = resolvedDescriptor)
+            val runtimeTarget = resolveRuntimeTarget(resolvedOwner, target)
             ScalpelWeaver.AdviceTargetSpec(
                 target = runtimeTarget,
                 kinds = targetEntries.map { it.kind }.toSet(),
@@ -292,6 +293,20 @@ object Scalpel {
                 },
             )
         }
+    }
+
+    /** 后端确认接受计划后才发布别名，失败安装不得留下一个永远不会被字节码调用的幽灵 chain。 */
+    private fun syncRuntimeAliases(resolvedOwner: String, entries: List<AdviceEntry>) {
+        entries.groupBy { it.target }.forEach { (logicalTarget, targetEntries) ->
+            val runtimeTarget = resolveRuntimeTarget(resolvedOwner, logicalTarget)
+            TheatreDispatcher.registerRuntimeAlias(runtimeTarget, targetEntries)
+        }
+    }
+
+    /** 宿主坐标只允许经过这一条解析链，保证 weave key、Bridge route 与 dispatcher alias 完全一致。 */
+    private fun resolveRuntimeTarget(resolvedOwner: String, target: taboolib.module.incision.api.MethodCoordinate): taboolib.module.incision.api.MethodCoordinate {
+        val (resolvedName, resolvedDescriptor) = RemapRouter.resolveMethod(target.owner, target.name, target.descriptor)
+        return target.copy(owner = resolvedOwner, name = resolvedName, descriptor = resolvedDescriptor)
     }
 
     /**

@@ -1,6 +1,5 @@
 package taboolib.module.incision.runtime
 
-import io.izzel.incision.bridge.IncisionBridge
 import taboolib.module.incision.api.MethodCoordinate
 import taboolib.module.incision.api.Resume
 import taboolib.module.incision.api.Theatre
@@ -20,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap
 object TheatreDispatcher {
 
     @JvmField
-    val BYPASS_MISS: Any = IncisionBridge.bypassMiss()
+    val BYPASS_MISS: Any = CanonicalBridge.bypassMiss()
 
     private val chains = ConcurrentHashMap<String, AdviceChain>()
     private val wildcardEntries = ConcurrentHashMap<String, MutableList<AdviceEntry>>()
@@ -108,6 +107,8 @@ object TheatreDispatcher {
         chains.computeIfAbsent(target.signature) { AdviceChain(target) }
 
     fun register(entry: AdviceEntry) {
+        // owner 的 defining loader 可能属于 Leaf、AuraSkills 或其他第三方插件；按签名登记声明方才能精确回调。
+        CanonicalBridge.registerTarget(TheatreDispatcher::class.java, entry.target.signature)
         val desc = entry.target.descriptor
         if (desc.contains('*')) {
             val ownerName = "${entry.target.owner}.${entry.target.name}"
@@ -128,16 +129,33 @@ object TheatreDispatcher {
         }
     }
 
+    /**
+     * 为 remap 后的运行时坐标建立同一 advice 链的别名。
+     *
+     * Weaver 写入字节码的是运行时 owner/name/descriptor；dispatcher 若只保存 Mojang/Spigot
+     * 声明坐标，会在旧版 NMS 或成员改名时路由成功却找不到 chain。
+     */
+    internal fun registerRuntimeAlias(runtimeTarget: MethodCoordinate, entries: List<AdviceEntry>) {
+        if (entries.isEmpty()) return
+        CanonicalBridge.registerTarget(TheatreDispatcher::class.java, runtimeTarget.signature)
+        val chain = chainOf(runtimeTarget)
+        entries.forEach(chain::add)
+    }
+
     fun unregister(target: MethodCoordinate, id: String): Boolean {
-        var removed = chains[target.signature]?.remove(id) ?: false
+        var removed = false
+        // 一个 entry 可能同时存在于声明坐标和 remap 后运行时坐标；按 id 清理全部投影。
+        for ((signature, chain) in chains) {
+            removed = chain.remove(id) || removed
+            if (chain.isEmpty() && chains.remove(signature, chain)) {
+                CanonicalBridge.unregisterTarget(TheatreDispatcher::class.java.classLoader, signature)
+                bodyInvokerCache.keys.removeIf { it.baseSig == signature }
+            }
+        }
         val ownerName = "${target.owner}.${target.name}"
         wildcardEntries[ownerName]?.let { entries ->
             removed = entries.removeIf { it.id == id } || removed
             if (entries.isEmpty()) wildcardEntries.remove(ownerName, entries)
-        }
-        if (target.descriptor.contains('*')) {
-            // 通配 advice 注册时会被复制进已存在的具体 chain；卸载必须按 id 全量清除这些投影。
-            chains.values.forEach { chain -> removed = chain.remove(id) || removed }
         }
         predicateWarnedIds.remove(id)
         bodyInvokerCache.keys.removeIf { it.baseSig == target.signature }
