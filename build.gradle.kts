@@ -8,6 +8,14 @@ plugins {
     id("com.github.johnrengelman.shadow") version "7.1.2" apply false
 }
 
+val commitId = providers.exec {
+    commandLine("git", "rev-parse", "--short=7", "HEAD")
+}.standardOutput.asText.map { it.trim() }.get()
+
+allprojects {
+    version = "$version-$commitId"
+}
+
 subprojects {
     apply(plugin = "java-library")
     apply(plugin = "org.jetbrains.kotlin.jvm")
