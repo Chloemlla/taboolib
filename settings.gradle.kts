@@ -60,7 +60,8 @@ include(
     "module:incision",
 
     // 用户空间
-    "userspace:geek-tool"
+    "userspace:geek-tool",
+    "userspace:e2e-harness"
 )
 include(
     "platform:platform-application",

@@ -101,7 +101,7 @@ gradle.buildFinished {
 }
 
 subprojects
-    .filter { it.name != "module" && it.name != "platform" && it.name != "expansion" && !it.name.startsWith("impl") }
+    .filter { it.name != "module" && it.name != "platform" && it.name != "expansion" && it.name != "e2e-harness" && !it.name.startsWith("impl") }
     .forEach { proj ->
         proj.publishing { applyToSub(proj) }
     }
