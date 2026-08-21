@@ -8,9 +8,11 @@ import net.minecraft.nbt.*
 import net.minecraft.resources.MinecraftKey
 import net.minecraft.world.item.AdventureModePredicate
 import net.minecraft.world.item.component.CustomData
+import net.minecraft.world.level.block.Block
 import org.bukkit.craftbukkit.v1_21_R3.CraftRegistry
 import org.bukkit.craftbukkit.v1_21_R3.inventory.CraftItemStack
 import org.bukkit.inventory.ItemStack
+import org.tabooproject.reflex.Reflex.Companion.invokeMethod
 import taboolib.module.nms.remap.DynamicOpcode
 import taboolib.module.nms.remap.dynamic
 import java.util.Optional
@@ -38,7 +40,7 @@ class NMSItemTagImpl : NMSItemTag() {
         val compound = if (versionId >= 12105) {
             dynamic(
                 DynamicOpcode.INVOKESTATIC,
-                "net.minecraft.nbt.MojangsonParser#parseComponentFully(java.lang.String;)net.minecraft.nbt.NBTTagCompound;",
+                "net.minecraft.nbt.MojangsonParser#parseCompoundFully(java.lang.String;)net.minecraft.nbt.NBTTagCompound;",
                 json
             )
         } else {
@@ -103,13 +105,32 @@ class NMSItemTagImpl : NMSItemTag() {
         componentType: DataComponentType<AdventureModePredicate>,
     ): ItemStack {
         val nmsItem = getNMSCopy(itemStack)
+        val blockRegistry = BuiltInRegistries.BLOCK
+        // 1.20.5 - 1.21.4 在 Spigot 中存在多个同名混淆方法，按签名定位避免命中 getId(Object)。
+        val blockLookup = if (versionId < 12105) {
+            blockRegistry.javaClass.methods.first {
+                it.parameterTypes.contentEquals(arrayOf(MinecraftKey::class.java)) && it.returnType == Any::class.java
+            }
+        } else null
         val predicates = blocks.mapNotNull { blockName ->
-            val key = MinecraftKey.parse(blockName)
-            val blockHolder = BuiltInRegistries.BLOCK.get(key).getOrNull()
-            blockHolder?.let { holder ->
-                CriterionConditionBlock.a.block()
-                    .of(BuiltInRegistries.BLOCK, holder.value())
-                    .build()
+            // 无效命名空间不应阻断其余有效方块谓词。
+            val key = MinecraftKey.tryParse(blockName) ?: return@mapNotNull null
+            val block = if (versionId < 12105) {
+                blockLookup?.invoke(blockRegistry, key) as? Block ?: return@mapNotNull null
+            } else {
+                blockRegistry.get(key).getOrNull()?.value() ?: return@mapNotNull null
+            }
+            val builder = CriterionConditionBlock.a.block()
+            if (versionId < 12105) {
+                val builderClass = builder.javaClass
+                builderClass.methods.first {
+                    it.parameterTypes.size == 1 && Collection::class.java.isAssignableFrom(it.parameterTypes[0]) && it.returnType == builderClass
+                }.invoke(builder, listOf(block))
+                builderClass.methods.first {
+                    it.parameterTypes.isEmpty() && it.returnType == CriterionConditionBlock::class.java
+                }.invoke(builder) as CriterionConditionBlock
+            } else {
+                builder.of(BuiltInRegistries.BLOCK, block).build()
             }
         }
         val predicate = if (versionId >= 12105) {

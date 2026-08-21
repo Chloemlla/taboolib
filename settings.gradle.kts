@@ -19,6 +19,7 @@ include(
     "module:bukkit-nms",
     "module:bukkit-nms:bukkit-nms-ai",
     "module:bukkit-nms:bukkit-nms-data-serializer",
+    "module:bukkit-nms:bukkit-nms-data-serializer:nms-data-serializer-26",
     "module:bukkit-nms:bukkit-nms-data-serializer:nms-data-serializer-12005",
     "module:bukkit-nms:bukkit-nms-data-serializer:nms-data-serializer-legacy",
     "module:bukkit-nms:bukkit-nms-legacy",

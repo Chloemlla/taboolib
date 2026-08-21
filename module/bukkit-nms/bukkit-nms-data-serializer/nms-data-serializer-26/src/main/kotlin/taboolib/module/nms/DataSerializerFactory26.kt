@@ -2,22 +2,23 @@ package taboolib.module.nms
 
 import io.netty.buffer.ByteBufOutputStream
 import io.netty.buffer.Unpooled
-import net.minecraft.core.IRegistryCustom
+import net.minecraft.core.RegistryAccess
 import net.minecraft.network.RegistryFriendlyByteBuf
 import net.minecraft.network.chat.ComponentSerialization
-import org.bukkit.craftbukkit.v1_20_R4.util.CraftChatMessage
+import org.bukkit.craftbukkit.util.CraftChatMessage
 import java.io.DataOutput
 
 /**
- * Adyeshach
- * taboolib.module.nms.DataSerializerFactoryImpl
+ * Minecraft 26.x 非混淆环境的数据序列化器。
  *
- * @author 坏黑
- * @since 2022/12/12 23:30
+ * @author sky
  */
-class DataSerializerFactory12005 : DataSerializerFactory, DataSerializer {
+class DataSerializerFactory26 : DataSerializerFactory, DataSerializer {
 
-    val buf: RegistryFriendlyByteBuf = RegistryFriendlyByteBuf(Unpooled.buffer(), IRegistryCustom.EMPTY)
+    /**
+     * 携带空注册表访问器的网络缓冲区。
+     */
+    val buf = RegistryFriendlyByteBuf(Unpooled.buffer(), RegistryAccess.EMPTY)
 
     override fun writeByte(byte: Byte): DataSerializer {
         return buf.writeByte(byte.toInt()).let { this }
@@ -53,12 +54,14 @@ class DataSerializerFactory12005 : DataSerializerFactory, DataSerializer {
 
     override fun writeBoolean(boolean: Boolean, callback: Runnable): DataSerializer {
         buf.writeBoolean(boolean)
-        if (boolean) callback.run()
+        if (boolean) {
+            callback.run()
+        }
         return this
     }
 
     override fun writeMetadataLegacy(meta: List<Any>): DataSerializer {
-        TODO("Not yet implemented")
+        throw UnsupportedOperationException("Legacy metadata is unavailable on Minecraft 26.x")
     }
 
     override fun writeComponent(json: String): DataSerializer {
@@ -75,6 +78,6 @@ class DataSerializerFactory12005 : DataSerializerFactory, DataSerializer {
     }
 
     override fun newSerializer(): DataSerializer {
-        return DataSerializerFactory12005()
+        return DataSerializerFactory26()
     }
 }
