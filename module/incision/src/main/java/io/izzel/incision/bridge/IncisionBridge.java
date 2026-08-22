@@ -61,6 +61,14 @@ public final class IncisionBridge {
         new ConcurrentHashMap<String, Boolean>();
 
     /**
+     * JVM 进程只能由一个隔离 ClassLoader 直接拥有已加载的 JVMTI DLL。
+     * Bridge 保留该 owner，并把 native 回调广播给所有插件后端，避免后加载插件再次 System.load。
+     */
+    private static volatile Class<?> nativeOwner;
+    private static final CopyOnWriteArrayList<Class<?>> nativeDelegates = new CopyOnWriteArrayList<Class<?>>();
+    private static final ConcurrentHashMap<Class<?>, Method> nativeTransformCache = new ConcurrentHashMap<Class<?>, Method>();
+
+    /**
      * Side-car body 的字段解析缓存。
      *
      * key 与 value 都必须是弱引用语义，避免系统级 Bridge 通过 Field 反向强持有插件 ClassLoader；
@@ -224,6 +232,72 @@ public final class IncisionBridge {
     /** JVM 级 lease 数量；Gate holder 只能在该值归零后释放共享 delegate。 */
     public static int localLeaseCount() {
         return localCache.size();
+    }
+
+    /** 注册插件后端；返回 JVM 当前是否已有可用 native owner。 */
+    public static synchronized boolean registerNativeBackend(Class<?> backendClass, boolean ownsNative) {
+        if (backendClass == null) return nativeOwner != null;
+        if (ownsNative && nativeOwner == null) nativeOwner = backendClass;
+        if (!nativeDelegates.contains(backendClass)) nativeDelegates.add(backendClass);
+        return nativeOwner != null;
+    }
+
+    /**
+     * native ClassFileLoadHook 的 JVM 级聚合入口。每个 delegate 接收前一个插件产生的字节码，
+     * 因而两个插件对同一方法的织入会形成确定的先后链，而不是互相覆盖。
+     */
+    public static byte[] transformNative(ClassLoader loader, String name, byte[] bytes) {
+        byte[] current = bytes;
+        boolean changed = false;
+        for (Class<?> backend : nativeDelegates) {
+            try {
+                Method method = nativeTransformCache.get(backend);
+                if (method == null) {
+                    method = backend.getMethod("onSharedClassFileLoad", ClassLoader.class, String.class, byte[].class);
+                    nativeTransformCache.put(backend, method);
+                }
+                byte[] output = (byte[]) method.invoke(null, loader, name, current);
+                if (output != null) {
+                    current = output;
+                    changed = true;
+                }
+            } catch (Throwable t) {
+                System.err.println("[Incision][Bridge] native transformer delegate failed: " + backend.getName() + " — " + t);
+            }
+        }
+        return changed ? current : null;
+    }
+
+    /** 非 owner 插件通过这一入口复用唯一 native image。 */
+    public static Object invokeNative(String operation, Object[] args) {
+        Class<?> owner = nativeOwner;
+        if (owner == null) throw new IllegalStateException("Incision native owner unavailable");
+        try {
+            Method method = owner.getMethod("sharedNativeInvoke", String.class, Object[].class);
+            return method.invoke(null, operation, args);
+        } catch (Throwable t) {
+            throw new IllegalStateException("Incision shared native invocation failed: " + operation, t);
+        }
+    }
+
+    /**
+     * 插件卸载只移除自己的 delegate。最后一个 lease 才关闭 JVMTI；若 owner 先卸载，
+     * 其 Class 对象必须暂留到最后一个 lease 结束，否则其他插件无法继续调用 native image。
+     */
+    public static synchronized void unregisterNativeBackend(Class<?> backendClass) {
+        if (backendClass == null) return;
+        nativeDelegates.remove(backendClass);
+        nativeTransformCache.remove(backendClass);
+        if (!nativeDelegates.isEmpty()) return;
+        Class<?> owner = nativeOwner;
+        nativeOwner = null;
+        if (owner == null) return;
+        try {
+            owner.getMethod("sharedNativeInvoke", String.class, Object[].class)
+                .invoke(null, "dispose", new Object[0]);
+        } catch (Throwable t) {
+            System.err.println("[Incision][Bridge] native dispose failed: " + t);
+        }
     }
 
     // -----------------------------------------------------------------
