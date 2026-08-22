@@ -152,6 +152,7 @@ class Mapping(
             // region
             val time = System.currentTimeMillis()
             val mapping = Mapping()
+            val ambiguousSpigotNames = HashSet<String>()
             var inputStream = obcClass("CraftServer").classLoader.getResourceAsStream("META-INF/mappings/reobf.tiny")
             // 如果 inputStream 为空，说明是 Spigot 服务端
             if (inputStream == null) {
@@ -183,6 +184,17 @@ class Mapping(
                     if (args[0] == "c") {
                         mojangName = args[1].replace('/', '.')
                         val spigotName = args[2].replace('/', '.')
+                        if (spigotName.startsWith("net.minecraft.")) {
+                            val simpleName = spigotName.substringAfterLast('.', "")
+                            val previousName = mapping.classMapSpigotS2F[simpleName]
+                            if (previousName != null && previousName != spigotName) {
+                                // simple-name 仅用于唯一类回退，冲突项必须保留原路径匹配。
+                                mapping.classMapSpigotS2F.remove(simpleName)
+                                ambiguousSpigotNames += simpleName
+                            } else if (simpleName !in ambiguousSpigotNames) {
+                                mapping.classMapSpigotS2F[simpleName] = spigotName
+                            }
+                        }
                         mapping.classMapSpigotToMojang[spigotName] = mojangName
                         mapping.classMapMojangToSpigot[mojangName] = spigotName
                         mapping.classMapMojangS2F[mojangName.substringAfterLast('.', "")] = mojangName

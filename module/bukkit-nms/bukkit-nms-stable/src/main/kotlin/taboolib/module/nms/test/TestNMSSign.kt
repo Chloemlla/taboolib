@@ -3,6 +3,8 @@ package taboolib.module.nms.test
 import org.bukkit.Bukkit
 import taboolib.common.Test
 import taboolib.common.platform.function.info
+import taboolib.module.nms.MinecraftVersion
+import taboolib.module.nms.NMSSign
 import taboolib.module.nms.inputSign
 
 /**
@@ -17,9 +19,20 @@ object TestNMSSign : Test() {
     override fun check(): List<Result> {
         val player = Bukkit.getOnlinePlayers().firstOrNull()
         return if (player != null) {
-            listOf(sandbox("NMSSign:inputSign()") {
-                player.inputSign(arrayOf("我是啥比")) { info("输入 ${it.contentToString()}") }
-            })
+            listOf(
+                sandbox("NMSSign:implementation") {
+                    val expected = if (MinecraftVersion.isUnobfuscated) "NMSSignImpl26" else "NMSSignImpl"
+                    check(NMSSign.instance.javaClass.simpleName == expected)
+                },
+                sandbox("NMSSign:inputSign()") {
+                    player.inputSign(arrayOf("E2E")) {
+                        info("输入 ${it.contentToString()}")
+                        if (it.firstOrNull() == "E2E") {
+                            info("[E2E-PROBE] SIGN_CALLBACK")
+                        }
+                    }
+                },
+            )
         } else {
             emptyList()
         }
