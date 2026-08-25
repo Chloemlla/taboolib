@@ -14,6 +14,7 @@ TabooLib 端到端 (E2E) 自动化兼容性测试运行器
 import argparse
 import json
 import queue
+import re
 import shutil
 import subprocess
 import sys
@@ -27,6 +28,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 M2_REPO = Path.home() / ".m2" / "repository"
 CACHE_DIR = ROOT_DIR / ".e2e" / "cache"
 WORK_BASE_DIR = ROOT_DIR / ".e2e" / "run"
+BOT_DIR = ROOT_DIR / "scripts" / "e2e" / "bot"
 EXPECTED_CLIENT_PROBES = {
     "ACTION_BAR",
     "AI_LIFECYCLE",
@@ -57,6 +59,35 @@ def print_warn(msg: str):
 
 def print_error(msg: str):
     print(f"\033[1;31m[E2E] [FAIL] {msg}\033[0m")
+
+
+def version_key(version: str) -> tuple:
+    parts = []
+    for part in version.split("."):
+        match = re.match(r"\d+", part)
+        if match is None:
+            break
+        parts.append(int(match.group()))
+    return tuple(parts)
+
+
+def select_bot_version(server_version: str, requested_version: str = None) -> str:
+    if requested_version:
+        return requested_version
+    try:
+        latest_version = subprocess.check_output(
+            ["node", "-e", "console.log(require('./node_modules/mineflayer/lib/version').latestSupportedVersion)"],
+            cwd=BOT_DIR,
+            text=True,
+            encoding="utf-8",
+        ).strip()
+    except (OSError, subprocess.SubprocessError):
+        latest_version = "1.21.4"
+        print_warn(f"无法读取 Mineflayer 协议上限，按内置上限 {latest_version} 选择客户端协议。")
+    if version_key(server_version) > version_key(latest_version):
+        print_warn(f"Mineflayer 最高支持 {latest_version}，将自动安装 Via 并桥接到 {server_version}。")
+        return latest_version
+    return server_version
 
 
 def publish_local():
@@ -308,13 +339,12 @@ def write_string(s: str) -> bytes:
 
 
 def launch_mineflayer_bot(host: str = "127.0.0.1", port: int = 25565, bot_name: str = "E2EBot", version: str = "1.21.4") -> subprocess.Popen:
-    bot_dir = ROOT_DIR / "scripts" / "e2e" / "bot"
-    bot_script = bot_dir / "bot.js"
+    bot_script = BOT_DIR / "bot.js"
     cmd = ["node", str(bot_script), host, str(port), bot_name]
     if version:
         cmd.append(version)
     print_step(f"启动 Mineflayer 真实客户端进程 ({bot_name} -> {host}:{port}, 协议版本: {version})...")
-    proc = subprocess.Popen(cmd, cwd=bot_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
+    proc = subprocess.Popen(cmd, cwd=BOT_DIR, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
     return proc
 
 
@@ -510,7 +540,7 @@ def main():
         server_jar = prepare_server(args.version, args.server, args.java)
 
     work_dir = WORK_BASE_DIR / f"{args.server}-{args.version}"
-    bot_version = args.bot_version or args.version
+    bot_version = select_bot_version(args.version, args.bot_version)
     setup_server_dir(work_dir, server_jar, harness_jar, install_via=args.via or bot_version != args.version)
 
     passed = run_e2e_server(
