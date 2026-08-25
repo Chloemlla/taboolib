@@ -65,8 +65,14 @@ public final class IncisionBridge {
      * Bridge 保留该 owner，并把 native 回调广播给所有插件后端，避免后加载插件再次 System.load。
      */
     private static volatile Class<?> nativeOwner;
+    private static volatile Method nativeOwnerInvoke;
     private static final CopyOnWriteArrayList<Class<?>> nativeDelegates = new CopyOnWriteArrayList<Class<?>>();
     private static final ConcurrentHashMap<Class<?>, Method> nativeTransformCache = new ConcurrentHashMap<Class<?>, Method>();
+    /**
+     * JVMTI 回调可能在 delegate 链接辅助类时再次进入 ClassFileLoadHook；线程级闸门保证
+     * 递归加载只返回原始字节，避免隔离加载器重复定义 Backend$BackendToken。
+     */
+    private static final ThreadLocal<Boolean> nativeTransformGuard = new ThreadLocal<Boolean>();
 
     /**
      * Side-car body 的字段解析缓存。
@@ -237,7 +243,26 @@ public final class IncisionBridge {
     /** 注册插件后端；返回 JVM 当前是否已有可用 native owner。 */
     public static synchronized boolean registerNativeBackend(Class<?> backendClass, boolean ownsNative) {
         if (backendClass == null) return nativeOwner != null;
-        if (ownsNative && nativeOwner == null) nativeOwner = backendClass;
+        try {
+            // getMethods 会解析 Backend 继承树上的所有公开签名。在 ClassFileLoadHook 激活期间，
+            // 这会递归触发 Backend$BackendToken 的定义并让隔离加载器报 duplicate definition。
+            // 注册阶段只解析 Bridge 协议声明本身，并在进入 native hook 前完成缓存。
+            // 同时提前初始化 delegate；否则首次 Method.invoke 仍可能在 ClassFileLoadHook 内
+            // 解析 Backend 继承树，把 Backend$BackendToken 的延迟定义重新带入回调递归。
+            Class.forName(backendClass.getName(), true, backendClass.getClassLoader());
+            Method transform = backendClass.getDeclaredMethod(
+                "onSharedClassFileLoad", ClassLoader.class, String.class, byte[].class
+            );
+            nativeTransformCache.put(backendClass, transform);
+            if (ownsNative && nativeOwner == null) {
+                Method invoke = backendClass.getDeclaredMethod("sharedNativeInvoke", String.class, Object[].class);
+                nativeOwner = backendClass;
+                nativeOwnerInvoke = invoke;
+            }
+        } catch (ReflectiveOperationException e) {
+            nativeTransformCache.remove(backendClass);
+            throw new IllegalArgumentException("Invalid Incision native backend protocol: " + backendClass.getName(), e);
+        }
         if (!nativeDelegates.contains(backendClass)) nativeDelegates.add(backendClass);
         return nativeOwner != null;
     }
@@ -247,33 +272,43 @@ public final class IncisionBridge {
      * 因而两个插件对同一方法的织入会形成确定的先后链，而不是互相覆盖。
      */
     public static byte[] transformNative(ClassLoader loader, String name, byte[] bytes) {
+        // BackendToken 是 Incision 协议接口，不是业务目标。对它进行织入会在接口定义尚未完成
+        // 时重新解析同一个接口，JVM 会以 duplicate interface definition 拒绝第二次定义。
+        if (name != null && (name.endsWith("/Backend$BackendToken") || name.endsWith("$BackendToken"))) {
+            return null;
+        }
+        if (Boolean.TRUE.equals(nativeTransformGuard.get())) return null;
+        nativeTransformGuard.set(Boolean.TRUE);
         byte[] current = bytes;
         boolean changed = false;
-        for (Class<?> backend : nativeDelegates) {
-            try {
-                Method method = nativeTransformCache.get(backend);
-                if (method == null) {
-                    method = backend.getMethod("onSharedClassFileLoad", ClassLoader.class, String.class, byte[].class);
-                    nativeTransformCache.put(backend, method);
+        try {
+            for (Class<?> backend : nativeDelegates) {
+                try {
+                    Method method = nativeTransformCache.get(backend);
+                    if (method == null) {
+                        throw new IllegalStateException("native transformer delegate was not pre-resolved");
+                    }
+                    byte[] output = (byte[]) method.invoke(null, loader, name, current);
+                    if (output != null) {
+                        current = output;
+                        changed = true;
+                    }
+                } catch (Throwable t) {
+                    System.err.println("[Incision][Bridge] native transformer delegate failed: " + backend.getName() + " — " + t);
                 }
-                byte[] output = (byte[]) method.invoke(null, loader, name, current);
-                if (output != null) {
-                    current = output;
-                    changed = true;
-                }
-            } catch (Throwable t) {
-                System.err.println("[Incision][Bridge] native transformer delegate failed: " + backend.getName() + " — " + t);
             }
+            return changed ? current : null;
+        } finally {
+            nativeTransformGuard.remove();
         }
-        return changed ? current : null;
     }
 
     /** 非 owner 插件通过这一入口复用唯一 native image。 */
     public static Object invokeNative(String operation, Object[] args) {
         Class<?> owner = nativeOwner;
-        if (owner == null) throw new IllegalStateException("Incision native owner unavailable");
+        Method method = nativeOwnerInvoke;
+        if (owner == null || method == null) throw new IllegalStateException("Incision native owner unavailable");
         try {
-            Method method = owner.getMethod("sharedNativeInvoke", String.class, Object[].class);
             return method.invoke(null, operation, args);
         } catch (Throwable t) {
             throw new IllegalStateException("Incision shared native invocation failed: " + operation, t);
@@ -290,11 +325,12 @@ public final class IncisionBridge {
         nativeTransformCache.remove(backendClass);
         if (!nativeDelegates.isEmpty()) return;
         Class<?> owner = nativeOwner;
+        Method invoke = nativeOwnerInvoke;
         nativeOwner = null;
-        if (owner == null) return;
+        nativeOwnerInvoke = null;
+        if (owner == null || invoke == null) return;
         try {
-            owner.getMethod("sharedNativeInvoke", String.class, Object[].class)
-                .invoke(null, "dispose", new Object[0]);
+            invoke.invoke(null, "dispose", new Object[0]);
         } catch (Throwable t) {
             System.err.println("[Incision][Bridge] native dispose failed: " + t);
         }
