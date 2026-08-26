@@ -34,8 +34,6 @@ COMPATIBILITY_MATRIX = (
     ("26.3", 25, "SignTextSlot 与 GoalSelector getter"),
 )
 
-BRIDGED_BOT_VERSIONS = {"1.21.5", "1.21.8", "26.1.2", "26.2", "26.3"}
-
 
 def java_command(major: int) -> str:
     configured = os.environ.get(f"TABOOLIB_E2E_JAVA_{major}")
@@ -83,8 +81,6 @@ def run_target(distribution: str, version: str, java_major: int, timeout: int):
         "--timeout",
         str(timeout),
     ]
-    if version in BRIDGED_BOT_VERSIONS:
-        command.extend(("--bot-version", "1.21.4", "--via"))
     process = subprocess.run(
         command,
         cwd=ROOT_DIR,
