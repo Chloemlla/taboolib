@@ -102,7 +102,9 @@ object E2ERunner {
                 warning("[E2E]   [FAIL] E2E:testLoaded:$testName -> ${error.message}")
                 allResults += Test.Failure.of("E2E:testLoaded:$testName", error)
             }
-            for (test in tests) {
+            // 历史 Exchanges 回归测试必须先于其它 NMS 测试，确保首次加载代理类时仍使用模拟状态。
+            val orderedTests = tests.sortedBy { if (it.javaClass.name == "taboolib.module.nms.test.TestNMSSign") 0 else 1 }
+            for (test in orderedTests) {
                 val testName = test.javaClass.simpleName
                 info("[E2E] 运行测试: $testName ...")
                 try {
