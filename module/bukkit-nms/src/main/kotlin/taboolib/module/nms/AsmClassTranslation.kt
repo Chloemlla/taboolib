@@ -121,6 +121,6 @@ class AsmClassTranslation(val source: String) {
         /**
          * NMS remap 转换策略缓存 ID。
          */
-        const val REMAP_TRANSLATION_CACHE_ID = "20260821-legacy-source-parents"
+        const val REMAP_TRANSLATION_CACHE_ID = "20260827-paper-exchange-simple-names"
     }
 }
