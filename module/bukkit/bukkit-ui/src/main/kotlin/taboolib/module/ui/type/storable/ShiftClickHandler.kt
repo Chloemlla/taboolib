@@ -69,7 +69,14 @@ class ShiftClickHandler : BaseActionHandler() {
             // Shift 放入同样受放入校验约束，未通过时直接阻断（调用方已取消事件，物品留在玩家背包）
             if (!ctx.rule.canPlace(inventory, currentItem, firstSlot)) return StorableActionResult.HANDLED
             if (ctx.rule.canShiftSwap(inventory, currentItem, firstSlot)) {
-                ctx.event.currentItem = ctx.rule.getItem(inventory, firstSlot)
+                // 调用方已取消事件，经事件设置来源槽不会生效，必须直接改玩家背包，否则来源不清、背包与页面各留一份
+                val playerInventory = ctx.player.inventory
+                val playerSlot = ctx.slot - inventory.size
+                val oldTopItem = ctx.rule.getItem(inventory, firstSlot)
+                if (playerSlot in 0 until playerInventory.size) {
+                    playerInventory.setItem(playerSlot, oldTopItem ?: ItemStack(Material.AIR))
+                }
+                ctx.event.currentItem = oldTopItem
                 ctx.rule.setItem(inventory, currentItem, firstSlot, ctx.clickType)
             } else if (ctx.rule.getItem(inventory, firstSlot).isAir) {
                 ctx.rule.setItem(inventory, currentItem, firstSlot, ctx.clickType)
