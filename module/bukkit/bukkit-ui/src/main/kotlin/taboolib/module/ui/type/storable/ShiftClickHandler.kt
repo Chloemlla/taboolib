@@ -31,6 +31,8 @@ class ShiftClickHandler : BaseActionHandler() {
         // 第一步：尝试合并到所有相同物品的槽位
         for (slot in slots) {
             if (remainingItem.amount <= 0) break
+            // 合并目标同样受放入校验约束，否则 Shift 连点可绕过 checkSlot 堆进禁放槽位
+            if (!ctx.rule.canPlace(inventory, remainingItem, slot)) continue
             val slotItem = ctx.rule.getItem(inventory, slot)
             if (slotItem != null && !slotItem.isAir && slotItem.isSimilar(remainingItem)) {
                 val maxStack = ctx.rule.getItemStacker().getMaxStackSize(slotItem)
@@ -44,7 +46,8 @@ class ShiftClickHandler : BaseActionHandler() {
         // 第二步：如果还有剩余，找空槽位放入
         if (remainingItem.amount > 0) {
             val firstSlot = ctx.rule.getFirstSlot(inventory, remainingItem)
-            if (firstSlot >= 0 && ctx.rule.getItem(inventory, firstSlot).isAir) {
+            // 落位同样受放入校验约束，未通过时剩余物品留在玩家背包
+            if (firstSlot >= 0 && ctx.rule.getItem(inventory, firstSlot).isAir && ctx.rule.canPlace(inventory, remainingItem, firstSlot)) {
                 ctx.rule.setItem(inventory, remainingItem.clone(), firstSlot, ctx.clickType)
                 remainingItem.amount = 0
             }
@@ -63,6 +66,8 @@ class ShiftClickHandler : BaseActionHandler() {
         val inventory = ctx.inventory
         val firstSlot = ctx.rule.getFirstSlot(inventory, currentItem)
         if (firstSlot >= 0) {
+            // Shift 放入同样受放入校验约束，未通过时直接阻断（调用方已取消事件，物品留在玩家背包）
+            if (!ctx.rule.canPlace(inventory, currentItem, firstSlot)) return StorableActionResult.HANDLED
             if (ctx.rule.canShiftSwap(inventory, currentItem, firstSlot)) {
                 ctx.event.currentItem = ctx.rule.getItem(inventory, firstSlot)
                 ctx.rule.setItem(inventory, currentItem, firstSlot, ctx.clickType)

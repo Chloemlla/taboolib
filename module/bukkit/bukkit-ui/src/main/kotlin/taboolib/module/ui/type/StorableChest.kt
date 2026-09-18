@@ -45,7 +45,8 @@ interface StorableChest : Chest {
 
         /**
          * 获取页面中首个有效的位置
-         * 用于玩家 SHIFT 点击快速放入物品，不再触发 checkSlot 回调
+         * 用于玩家 SHIFT 点击快速放入物品
+         * 注意：Shift 放入的最终落位仍会经过 checkSlot 校验，不可放入的槽位会被阻断
          */
         fun firstSlot(firstSlot: (inventory: Inventory, itemStack: ItemStack) -> Int)
 
@@ -79,6 +80,25 @@ interface StorableChest : Chest {
          * 用于 Shift 点击时自动合并到这些槽位
          */
         fun mergeSlots(mergeSlots: (inventory: Inventory, itemStack: ItemStack) -> List<Int>)
+
+        /**
+         * 原子消费顶层容器指定槽位
+         * 同步取出并清空 Bukkit 侧槽位，返回取出前的物品（经 readItem，与玩家看到的一致）。
+         * 用于结算（分解/销毁/提交）场景：先基于自有状态算奖，再调此方法，最后收尾重开。
+         * 消费经由 writeItem 回调逐槽下发，页面的影子状态随之自动同步，无需再手清。
+         * 消费是系统行为，不经过 checkSlot/canPickup；放入合法性由 Shift/放置门禁保证。
+         * 调用前后不得切换线程，必须在 Bukkit 主线程事件处理内同步执行；重复调用幂等。
+         *
+         * @param inventory 顶层容器
+         * @param slots 待消费槽位，越界自动跳过
+         * @param clickType 透传给 writeItem 的点击类型，按钮回调无事件时用默认 LEFT
+         * @return 按 slots 顺序的取出物，空槽为 null
+         */
+        fun consumeSlots(
+            inventory: Inventory,
+            slots: Collection<Int>,
+            clickType: BukkitClickType = BukkitClickType.LEFT,
+        ): List<ItemStack?>
     }
 }
 

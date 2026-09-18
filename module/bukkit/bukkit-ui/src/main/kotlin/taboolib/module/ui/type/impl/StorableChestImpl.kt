@@ -282,6 +282,17 @@ open class StorableChestImpl(title: String) : ChestImpl(title), StorableChest {
 
         fun getItemStacker(): ItemStacker = itemStackerValue
 
+        override fun consumeSlots(inventory: Inventory, slots: Collection<Int>, clickType: BukkitClickType): List<ItemStack?> {
+            return slots.map { slot ->
+                // 先经 readItem 留底，再经 writeItem 清空；影子状态随 writeItem 自动同步
+                val removed = if (slot in 0 until inventory.size) getItem(inventory, slot)?.takeIf { !it.isAir } else null
+                if (slot in 0 until inventory.size) {
+                    setItem(inventory, ItemStack(Material.AIR), slot, clickType)
+                }
+                removed
+            }
+        }
+
         // ============ 公开配置方法（用户使用）============
 
         override fun checkSlot(intRange: Int, checkSlot: (Inventory, ItemStack) -> Boolean) {
