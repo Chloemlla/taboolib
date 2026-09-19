@@ -1,0 +1,388 @@
+[
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "top.maplex.incisiontest.benchmark.IncisionJmhBenchmark.baseline",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 0,
+        "jvm" : "D:\\Java\\azul-21.0.10\\bin\\java.exe",
+        "jvmArgs" : [
+            "-Xms512M",
+            "-Xmx1536M",
+            "-Dfile.encoding=UTF-8",
+            "-Dtaboolib.incision.backend=jvmti",
+            "-Dincision.test.autoRun=false",
+            "-Djdk.attach.allowAttachSelf=true",
+            "-Dincision.jmh.output=E:\\Code\\TabooLib\\taboolib\\module\\incision\\performance\\jmh-2026-07-28\\raw\\1.21.11-paper-java21-jvmti.json",
+            "-Dincision.jmh.warmupIterations=3",
+            "-Dincision.jmh.measurementIterations=7",
+            "-Dincision.jmh.iterationMillis=500",
+            "-XX:+EnableDynamicAgentLoading"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 7,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "primaryMetric" : {
+            "score" : 0.37425003269896656,
+            "scoreError" : 0.007175621732463939,
+            "scoreConfidence" : [
+                0.3670744109665026,
+                0.3814256544314305
+            ],
+            "scorePercentiles" : {
+                "0.0" : 0.37169404039056164,
+                "50.0" : 0.3731601144693501,
+                "90.0" : 0.38099351476736526,
+                "95.0" : 0.38099351476736526,
+                "99.0" : 0.38099351476736526,
+                "99.9" : 0.38099351476736526,
+                "99.99" : 0.38099351476736526,
+                "99.999" : 0.38099351476736526,
+                "99.9999" : 0.38099351476736526,
+                "100.0" : 0.38099351476736526
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    0.38099351476736526,
+                    0.3721120488753892,
+                    0.37372938036226777,
+                    0.3728536185855416,
+                    0.3752075114422903,
+                    0.37169404039056164,
+                    0.3731601144693501
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "top.maplex.incisiontest.benchmark.IncisionJmhBenchmark.lead",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 0,
+        "jvm" : "D:\\Java\\azul-21.0.10\\bin\\java.exe",
+        "jvmArgs" : [
+            "-Xms512M",
+            "-Xmx1536M",
+            "-Dfile.encoding=UTF-8",
+            "-Dtaboolib.incision.backend=jvmti",
+            "-Dincision.test.autoRun=false",
+            "-Djdk.attach.allowAttachSelf=true",
+            "-Dincision.jmh.output=E:\\Code\\TabooLib\\taboolib\\module\\incision\\performance\\jmh-2026-07-28\\raw\\1.21.11-paper-java21-jvmti.json",
+            "-Dincision.jmh.warmupIterations=3",
+            "-Dincision.jmh.measurementIterations=7",
+            "-Dincision.jmh.iterationMillis=500",
+            "-XX:+EnableDynamicAgentLoading"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 7,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "primaryMetric" : {
+            "score" : 72.04206105179075,
+            "scoreError" : 1.6126934666600128,
+            "scoreConfidence" : [
+                70.42936758513073,
+                73.65475451845077
+            ],
+            "scorePercentiles" : {
+                "0.0" : 71.38271482422843,
+                "50.0" : 71.8101489204333,
+                "90.0" : 73.34149728562238,
+                "95.0" : 73.34149728562238,
+                "99.0" : 73.34149728562238,
+                "99.9" : 73.34149728562238,
+                "99.99" : 73.34149728562238,
+                "99.999" : 73.34149728562238,
+                "99.9999" : 73.34149728562238,
+                "100.0" : 73.34149728562238
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    71.46908348023547,
+                    71.5923297710657,
+                    72.04941869247455,
+                    71.8101489204333,
+                    71.38271482422843,
+                    73.34149728562238,
+                    72.64923438847549
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "top.maplex.incisiontest.benchmark.IncisionJmhBenchmark.leadTrail",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 0,
+        "jvm" : "D:\\Java\\azul-21.0.10\\bin\\java.exe",
+        "jvmArgs" : [
+            "-Xms512M",
+            "-Xmx1536M",
+            "-Dfile.encoding=UTF-8",
+            "-Dtaboolib.incision.backend=jvmti",
+            "-Dincision.test.autoRun=false",
+            "-Djdk.attach.allowAttachSelf=true",
+            "-Dincision.jmh.output=E:\\Code\\TabooLib\\taboolib\\module\\incision\\performance\\jmh-2026-07-28\\raw\\1.21.11-paper-java21-jvmti.json",
+            "-Dincision.jmh.warmupIterations=3",
+            "-Dincision.jmh.measurementIterations=7",
+            "-Dincision.jmh.iterationMillis=500",
+            "-XX:+EnableDynamicAgentLoading"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 7,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "primaryMetric" : {
+            "score" : 173.36167868490128,
+            "scoreError" : 2.940590897146458,
+            "scoreConfidence" : [
+                170.42108778775483,
+                176.30226958204773
+            ],
+            "scorePercentiles" : {
+                "0.0" : 171.67110518165902,
+                "50.0" : 173.60311605106054,
+                "90.0" : 175.28484997335792,
+                "95.0" : 175.28484997335792,
+                "99.0" : 175.28484997335792,
+                "99.9" : 175.28484997335792,
+                "99.99" : 175.28484997335792,
+                "99.999" : 175.28484997335792,
+                "99.9999" : 175.28484997335792,
+                "100.0" : 175.28484997335792
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    172.4071899930039,
+                    175.28484997335792,
+                    173.60311605106054,
+                    174.27174585811818,
+                    172.20302057312998,
+                    171.67110518165902,
+                    174.09072316397948
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "top.maplex.incisiontest.benchmark.IncisionJmhBenchmark.predicateTrue",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 0,
+        "jvm" : "D:\\Java\\azul-21.0.10\\bin\\java.exe",
+        "jvmArgs" : [
+            "-Xms512M",
+            "-Xmx1536M",
+            "-Dfile.encoding=UTF-8",
+            "-Dtaboolib.incision.backend=jvmti",
+            "-Dincision.test.autoRun=false",
+            "-Djdk.attach.allowAttachSelf=true",
+            "-Dincision.jmh.output=E:\\Code\\TabooLib\\taboolib\\module\\incision\\performance\\jmh-2026-07-28\\raw\\1.21.11-paper-java21-jvmti.json",
+            "-Dincision.jmh.warmupIterations=3",
+            "-Dincision.jmh.measurementIterations=7",
+            "-Dincision.jmh.iterationMillis=500",
+            "-XX:+EnableDynamicAgentLoading"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 7,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "primaryMetric" : {
+            "score" : 73.57366842116963,
+            "scoreError" : 2.897419847886384,
+            "scoreConfidence" : [
+                70.67624857328325,
+                76.47108826905601
+            ],
+            "scorePercentiles" : {
+                "0.0" : 71.50992356745304,
+                "50.0" : 73.72839191246764,
+                "90.0" : 75.5521590930491,
+                "95.0" : 75.5521590930491,
+                "99.0" : 75.5521590930491,
+                "99.9" : 75.5521590930491,
+                "99.99" : 75.5521590930491,
+                "99.999" : 75.5521590930491,
+                "99.9999" : 75.5521590930491,
+                "100.0" : 75.5521590930491
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    74.28517815395413,
+                    72.71972536091268,
+                    73.11289160238955,
+                    74.10740925796124,
+                    71.50992356745304,
+                    75.5521590930491,
+                    73.72839191246764
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "top.maplex.incisiontest.benchmark.IncisionJmhBenchmark.siteInvoke",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 0,
+        "jvm" : "D:\\Java\\azul-21.0.10\\bin\\java.exe",
+        "jvmArgs" : [
+            "-Xms512M",
+            "-Xmx1536M",
+            "-Dfile.encoding=UTF-8",
+            "-Dtaboolib.incision.backend=jvmti",
+            "-Dincision.test.autoRun=false",
+            "-Djdk.attach.allowAttachSelf=true",
+            "-Dincision.jmh.output=E:\\Code\\TabooLib\\taboolib\\module\\incision\\performance\\jmh-2026-07-28\\raw\\1.21.11-paper-java21-jvmti.json",
+            "-Dincision.jmh.warmupIterations=3",
+            "-Dincision.jmh.measurementIterations=7",
+            "-Dincision.jmh.iterationMillis=500",
+            "-XX:+EnableDynamicAgentLoading"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 7,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "primaryMetric" : {
+            "score" : 143.75848702962048,
+            "scoreError" : 4.938722678208888,
+            "scoreConfidence" : [
+                138.8197643514116,
+                148.69720970782936
+            ],
+            "scorePercentiles" : {
+                "0.0" : 141.55713943567775,
+                "50.0" : 143.89048709480684,
+                "90.0" : 147.4393904328589,
+                "95.0" : 147.4393904328589,
+                "99.0" : 147.4393904328589,
+                "99.9" : 147.4393904328589,
+                "99.99" : 147.4393904328589,
+                "99.999" : 147.4393904328589,
+                "99.9999" : 147.4393904328589,
+                "100.0" : 147.4393904328589
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    141.85198434582173,
+                    143.89048709480684,
+                    141.7322747903233,
+                    141.55713943567775,
+                    144.87288503504922,
+                    144.96524807280562,
+                    147.4393904328589
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "top.maplex.incisiontest.benchmark.IncisionJmhBenchmark.spliceProceed",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 0,
+        "jvm" : "D:\\Java\\azul-21.0.10\\bin\\java.exe",
+        "jvmArgs" : [
+            "-Xms512M",
+            "-Xmx1536M",
+            "-Dfile.encoding=UTF-8",
+            "-Dtaboolib.incision.backend=jvmti",
+            "-Dincision.test.autoRun=false",
+            "-Djdk.attach.allowAttachSelf=true",
+            "-Dincision.jmh.output=E:\\Code\\TabooLib\\taboolib\\module\\incision\\performance\\jmh-2026-07-28\\raw\\1.21.11-paper-java21-jvmti.json",
+            "-Dincision.jmh.warmupIterations=3",
+            "-Dincision.jmh.measurementIterations=7",
+            "-Dincision.jmh.iterationMillis=500",
+            "-XX:+EnableDynamicAgentLoading"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 7,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "primaryMetric" : {
+            "score" : 103.1352374087394,
+            "scoreError" : 1.4162800777791216,
+            "scoreConfidence" : [
+                101.71895733096028,
+                104.55151748651852
+            ],
+            "scorePercentiles" : {
+                "0.0" : 101.8620754073328,
+                "50.0" : 103.50533697271476,
+                "90.0" : 103.57471607859114,
+                "95.0" : 103.57471607859114,
+                "99.0" : 103.57471607859114,
+                "99.9" : 103.57471607859114,
+                "99.99" : 103.57471607859114,
+                "99.999" : 103.57471607859114,
+                "99.9999" : 103.57471607859114,
+                "100.0" : 103.57471607859114
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    103.54251504291221,
+                    103.51806874522063,
+                    101.8620754073328,
+                    103.57471607859114,
+                    103.50533697271476,
+                    103.13903153349136,
+                    102.80491808091294
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    }
+]
+
+

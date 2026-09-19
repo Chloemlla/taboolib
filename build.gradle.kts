@@ -8,6 +8,14 @@ plugins {
     id("com.github.johnrengelman.shadow") version "7.1.2" apply false
 }
 
+val commitId = providers.exec {
+    commandLine("git", "rev-parse", "--short=7", "HEAD")
+}.standardOutput.asText.map { it.trim() }.get()
+
+allprojects {
+    version = "$version-$commitId"
+}
+
 subprojects {
     apply(plugin = "java-library")
     apply(plugin = "org.jetbrains.kotlin.jvm")
@@ -101,7 +109,7 @@ gradle.buildFinished {
 }
 
 subprojects
-    .filter { it.name != "module" && it.name != "platform" && it.name != "expansion" && !it.name.startsWith("impl") }
+    .filter { it.name != "module" && it.name != "platform" && it.name != "expansion" && it.name != "e2e-harness" && !it.name.startsWith("impl") }
     .forEach { proj ->
         proj.publishing { applyToSub(proj) }
     }
