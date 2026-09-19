@@ -4,6 +4,7 @@ import org.objectweb.asm.ClassReader
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Opcodes
 import org.objectweb.asm.commons.Remapper
+import taboolib.common.ClassAppender
 import taboolib.common.reflect.ClassHelper
 import taboolib.module.nms.MinecraftVersion
 import taboolib.module.nms.remap.RemapTranslation.Companion.extraTransformers
@@ -32,6 +33,7 @@ open class RemapTranslation : Remapper() {
     val obc2 = "org/bukkit/craftbukkit/${MinecraftVersion.minecraftVersion}/"
     val obc3 = "org/bukkit/craftbukkit/"
     val runtimeClassCache = ConcurrentHashMap<String, Boolean>()
+    private val translationClassCache = ConcurrentHashMap<String, Boolean>()
 
     companion object {
 
@@ -125,7 +127,9 @@ open class RemapTranslation : Remapper() {
      */
     fun translateMojangToSpigotOrKeepRuntime(key: String): String {
         val runtimeName = key.replace('/', '.')
-        val spigotName = findMojangToSpigotName(key) ?: return key
+        val spigotName = findMojangToSpigotName(key)
+            ?: findRuntimeClassBySimpleName(runtimeName)?.replace('.', '/')
+            ?: return key
         // 只有映射表确实准备改名时才检查运行时类，避免在普通路径上反复触发类查找。
         if (spigotName == key) {
             return key
@@ -145,10 +149,70 @@ open class RemapTranslation : Remapper() {
             return key
         }
         val shortName = runtimeName.substringAfterLast('.')
-        val mappingName = MinecraftVersion.paperMapping.classMapSpigotToMojang[runtimeName]
+        val legacyMappingName = MinecraftVersion.paperMapping.classMapSpigotToMojang[runtimeName]
             ?: MinecraftVersion.paperMapping.classMapSpigotToMojang.values.singleOrNull { it.substringAfterLast('.') == shortName }
-            ?: return key
-        return if (hasRuntimeClass(mappingName)) mappingName.replace('.', '/') else key
+        if (legacyMappingName != null) {
+            return if (hasRuntimeClass(legacyMappingName)) legacyMappingName.replace('.', '/') else key
+        }
+        val mappingName = findRuntimeClassBySimpleName(runtimeName) ?: return key
+        return mappingName.replace('.', '/')
+    }
+
+    /**
+     * 根据当前映射和运行时类加载器，将旧版本中同名但包路径不同的类解析为当前类名。
+     *
+     * Paper 的 Mojang 映射在小版本间可能移动类的包，例如：
+     * `net.minecraft.world.entity.npc.VillagerType` ->
+     * `net.minecraft.world.entity.npc.villager.VillagerType`。
+     * 旧类名不会出现在当前映射表中，因此不能只按完整类名查找。
+     */
+    private fun findRuntimeClassBySimpleName(sourceName: String): String? {
+        if (!sourceName.startsWith("net.minecraft.")) {
+            return null
+        }
+        val simpleName = sourceName.substringAfterLast('.')
+        val sourcePackage = sourceName.substringBeforeLast('.', "")
+        val candidates = linkedSetOf<String>()
+
+        MinecraftVersion.spigotMapping.classMapSpigotS2F[simpleName]?.let { candidates += it }
+        MinecraftVersion.paperMapping.classMapSpigotToMojang.keys
+            .asSequence()
+            .filter { it.substringAfterLast('.') == simpleName }
+            .forEach { candidates += it }
+
+        return candidates.asSequence()
+            .map {
+                if (MinecraftVersion.isMojangMapping) {
+                    MinecraftVersion.paperMapping.classMapSpigotToMojang[it] ?: it
+                } else {
+                    it
+                }
+            }
+            .distinct()
+            .sortedByDescending { candidate ->
+                sharedPackageSegments(sourcePackage, candidate.substringBeforeLast('.', ""))
+            }
+            .firstOrNull { hasRuntimeClassInTranslationLoader(it) }
+    }
+
+    /**
+     * 优先选择与原类名包路径最接近的候选，避免同一简单类名存在于多个 NMS 包时误匹配。
+     */
+    private fun sharedPackageSegments(first: String, second: String): Int {
+        val firstSegments = first.split('.')
+        val secondSegments = second.split('.')
+        return firstSegments.zip(secondSegments).takeWhile { (a, b) -> a == b }.count()
+    }
+
+    private fun hasRuntimeClassInTranslationLoader(name: String): Boolean {
+        return translationClassCache.getOrPut(name) {
+            try {
+                Class.forName(name, false, ClassAppender.getClassLoader())
+                true
+            } catch (_: Throwable) {
+                false
+            }
+        }
     }
 
     /**
