@@ -70,8 +70,9 @@ class ShiftClickHandler : BaseActionHandler() {
             if (!ctx.rule.canPlace(inventory, currentItem, firstSlot)) return StorableActionResult.HANDLED
             if (ctx.rule.canShiftSwap(inventory, currentItem, firstSlot)) {
                 // 调用方已取消事件，经事件设置来源槽不会生效，必须直接改玩家背包，否则来源不清、背包与页面各留一份
+                // rawSlot 是合成视图全局下标，主栏换算到 PlayerInventory 会错位 18 格，必须用 Bukkit 已换算的 slot
                 val playerInventory = ctx.player.inventory
-                val playerSlot = ctx.slot - inventory.size
+                val playerSlot = ctx.event.clickEvent().slot
                 val oldTopItem = ctx.rule.getItem(inventory, firstSlot)?.takeIf { !it.isAir }
                 if (playerSlot in 0 until playerInventory.size) {
                     playerInventory.setItem(playerSlot, oldTopItem ?: ItemStack(Material.AIR))
