@@ -168,18 +168,21 @@ class Mapping(
 
         /**
          * 读取 Paper 格式 (reobf.tiny) 的映射文件
+         *
+         * @param targetVersion 指定加载哪个版本的映射，为 null 时自动检测当前运行版本。
+         *                      在 26.1+ 非混淆服务端中，需要指定最后一个混淆版本（如 1.21.11）来获取 Spigot → Mojang 类名映射。
          */
-        fun paper(): Mapping {
+        fun paper(targetVersion: String? = null): Mapping {
             // region
             val time = System.currentTimeMillis()
             val mapping = Mapping()
-            var inputStream = obcClass("CraftServer").classLoader.getResourceAsStream("META-INF/mappings/reobf.tiny")
-            // 如果 inputStream 为空，说明是 Spigot 服务端
+            var inputStream = if (targetVersion == null) obcClass("CraftServer").classLoader.getResourceAsStream("META-INF/mappings/reobf.tiny") else null
+            // 如果 inputStream 为空，说明是 Spigot 服务端或需要加载指定版本的映射
             if (inputStream == null) {
                 var reobfFile = ""
                 var reobfHash = ""
                 // 读取 mapping.json，远程下载对应版本的 reobf.tiny
-                val version = if (MinecraftVersion.isUniversal) MinecraftVersion.runningVersion else "1.17"
+                val version = targetVersion ?: if (MinecraftVersion.isUniversal) MinecraftVersion.runningVersion else "1.17"
                 JsonParser().parse(mappingJson!!.decodeToString()).asJsonArray.forEach {
                     val obj = it.asJsonObject
                     if (version == obj["version"].asString) {

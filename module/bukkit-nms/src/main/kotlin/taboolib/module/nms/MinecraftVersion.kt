@@ -282,8 +282,9 @@ object MinecraftVersion {
         if (Exchanges.MAPPING_PAPER in Exchanges) {
             Mapping.exchange(Exchanges.MAPPING_PAPER)
         } else {
-            // 如果是非混淆服务端（26.1+），该文件不存在，不读取
-            (if (isUnobfuscated) Mapping() else Mapping.paper()).exchange(Exchanges.MAPPING_PAPER)
+            // 非混淆服务端（26.1+）不再附带 reobf.tiny，但 NMSProxy 实现类仍使用 Spigot 类名编译，
+            // 需要加载最后一个混淆版本（1.21.11）的映射来转译类名。
+            (if (isUnobfuscated) Mapping.paper("1.21.11") else Mapping.paper()).exchange(Exchanges.MAPPING_PAPER)
         }
     }
 
