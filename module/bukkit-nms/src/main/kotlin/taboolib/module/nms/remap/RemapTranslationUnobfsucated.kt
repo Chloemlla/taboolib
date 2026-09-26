@@ -43,7 +43,7 @@ class RemapTranslationUnobfuscated : RemapTranslation() {
                 if (spigotFullName != null) {
                     val mapped = MinecraftVersion.paperMapping.classMapSpigotToMojang[spigotFullName]
                     if (mapped != null) {
-                        return resolveWithFallback(key, mapped)
+                        return resolveWithFallback(spigotFullName, mapped)
                     }
                 }
             }
@@ -57,11 +57,11 @@ class RemapTranslationUnobfuscated : RemapTranslation() {
      */
     fun resolveWithFallback(original: String, mojangName: String): String {
         val result = mojangName.replace('.', '/')
+        if (hasRuntimeClass(original.replace('/', '.'))) {
+            return original.replace(".","/")
+        }
         if (hasRuntimeClass(mojangName)) {
             return result
-        }
-        if (hasRuntimeClass(original.replace('/', '.'))) {
-            return original
         }
         return result
     }
